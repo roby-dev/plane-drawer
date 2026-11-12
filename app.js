@@ -36,7 +36,7 @@ function drawWall(w, parent, preview = false) {
   const coords = { x1: w.a.x, y1: w.a.y, x2: w.b.x, y2: w.b.y };
   el('line', { ...coords, stroke: preview || active ? '#3471d5' : '#344c63', 'stroke-width': w.thickness, 'stroke-linecap': 'square', opacity: preview ? .65 : 1 }, group);
   if (!preview) {
-    const hit = el('line', { ...coords, stroke: 'transparent', 'stroke-width': Math.max(w.thickness, 18 / camera.scale), cursor: 'move' }, group);
+    const hit = el('line', { ...coords, stroke: 'transparent', 'stroke-width': Math.max(w.thickness, 18 / camera.scale), cursor: gesture?.kind === 'pan' ? 'grabbing' : tool === 'select' ? 'move' : 'inherit' }, group);
     hit.dataset.wall = w.id;
   }
   if ($('dimensions').checked) {
@@ -59,10 +59,15 @@ function render() {
   plan.walls.forEach(w => drawWall(w, $('walls')));
   const wall = plan.walls.find(w => w.id === selected);
   if (wall) ['a','b'].forEach(end => {
-    const dot = el('circle', { cx: wall[end].x, cy: wall[end].y, r: 6 / camera.scale, fill: 'white', stroke: '#265cc6', 'stroke-width': 2 / camera.scale, cursor: 'crosshair' }, $('handles'));
+    const dot = el('circle', { cx: wall[end].x, cy: wall[end].y, r: 6 / camera.scale, fill: 'white', stroke: '#265cc6', 'stroke-width': 2 / camera.scale, cursor: gesture?.kind === 'pan' ? 'grabbing' : 'crosshair' }, $('handles'));
     dot.dataset.end = end;
   });
   if (gesture?.preview) gesture.preview.forEach(w => drawWall(w, $('preview'), true));
+  if (reference && gesture?.kind !== 'pan') {
+    const { x, y } = reference.point;
+    el('circle', { cx: x, cy: y, r: 7 / camera.scale, fill: '#fff', stroke: '#db8234', 'stroke-width': 2 / camera.scale, 'pointer-events': 'none', 'data-reference': reference.kind }, $('preview'));
+    el('text', { x: x + 12 / camera.scale, y: y - 12 / camera.scale, fill: '#8d4b13', 'font-size': 11 / camera.scale, 'pointer-events': 'none', stroke: '#f5f9fc', 'stroke-width': 4 / camera.scale, 'paint-order': 'stroke' }, $('preview'), reference.kind === 'endpoint' ? 'Endpoint' : 'Wall reference');
+  }
   $('empty').hidden = plan.walls.length > 0 || tool !== 'select' || !!gesture;
   $('wall-count').textContent = plan.walls.length + (plan.walls.length === 1 ? ' wall' : ' walls');
   $('zoom-level').textContent = Math.round(camera.scale / 55 * 100) + '%';
@@ -97,7 +102,7 @@ function cancelGesture() {
 function setTool(next) {
   cancelGesture(); tool = next;
   document.querySelectorAll('[data-tool]').forEach(b => { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', b.dataset.tool === tool); });
-  $('hint').textContent = { select: 'Drag a wall to move it. Drag its endpoints to resize or rotate.', rectangle: 'Drag diagonally to create a room. Measurements are in meters.', wall: 'Drag from start to end. Hold Shift for horizontal or vertical walls.', pan: 'Drag the canvas to move your view. Scroll to zoom.' }[tool];
+  $('hint').textContent = { select: 'Drag a wall to move it. Drag its endpoints to resize or rotate.', rectangle: 'Drag to draw a room. Orange marks snap to existing walls.', wall: 'Drag to draw. Orange marks snap to walls; Shift aligns free lines.', pan: 'Drag to pan. Hold the middle mouse button from any tool.' }[tool];
   svg.style.cursor = tool === 'select' ? 'default' : tool === 'pan' ? 'grab' : 'crosshair';
   render();
 }

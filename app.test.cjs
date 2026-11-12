@@ -71,3 +71,36 @@ test('a new wall snaps its start and end to existing walls, with a visible refer
   assert.equal(saved.walls[4].b.y, 3);
   assert.ok(Math.abs(saved.walls[4].a.x - (224 / 55 - 2)) < 1e-8);
 });
+
+test('rectangle corners use wall references and canceling a middle drag restores the cursor', () => {
+  const app = loadApp(); const canvas = app.get('canvas'); app.tool('rectangle');
+  canvas.fire('pointerdown'); canvas.fire('pointermove', { clientX: 330, clientY: 275 }); canvas.fire('pointerup');
+  app.tool('rectangle');
+  canvas.fire('pointerdown', { clientX: 115, clientY: 116 });
+  canvas.fire('pointermove', { clientX: 440, clientY: 330 }); canvas.fire('pointerup');
+  const saved = JSON.parse(app.storage.get('planedrawer.plan.v1'));
+  assert.equal(saved.walls.length, 8);
+  assert.deepEqual(saved.walls[4].a, { x: 0, y: 0 });
+  const before = app.storage.get('planedrawer.plan.v1');
+  app.tool('rectangle'); canvas.fire('pointerdown', { button: 1 }); canvas.fire('pointercancel');
+  assert.equal(canvas.style.cursor, 'crosshair');
+  assert.equal(app.storage.get('planedrawer.plan.v1'), before);
+  assert.equal(canvas.fire('auxclick', { button: 1 }).defaultPrevented, true);
+});
+
+test('left-button movement and right-button rejection preserve existing drawing behavior', () => {
+  const app = loadApp(); const canvas = app.get('canvas'); app.tool('rectangle');
+  canvas.fire('pointerdown'); canvas.fire('pointermove', { clientX: 330, clientY: 275 }); canvas.fire('pointerup');
+  const original = JSON.parse(app.storage.get('planedrawer.plan.v1'));
+  const target = { dataset: { wall: original.walls[0].id } };
+  canvas.fire('pointerdown', { target });
+  canvas.fire('pointermove', { clientX: 165, clientY: 165 }); canvas.fire('pointerup');
+  const moved = JSON.parse(app.storage.get('planedrawer.plan.v1'));
+  assert.deepEqual(moved.walls[0].a, { x: 1, y: 1 });
+  assert.equal(model.length(moved.walls[0]), 4);
+  assert.deepEqual(moved.walls.slice(1), original.walls.slice(1));
+  const view = canvas.attrs.viewBox, saved = app.storage.get('planedrawer.plan.v1');
+  canvas.fire('pointerdown', { button: 2 }); canvas.fire('pointermove', { clientX: 200 }); canvas.fire('pointerup', { button: 2 });
+  assert.equal(canvas.attrs.viewBox, view);
+  assert.equal(app.storage.get('planedrawer.plan.v1'), saved);
+});

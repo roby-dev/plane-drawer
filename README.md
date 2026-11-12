@@ -14,7 +14,8 @@ A local 2D floor plan sketchpad built with plain JavaScript and SVG. No packages
 - **Select & move (V):** drag a wall; drag its round endpoints to resize or rotate it.
 - **Rectangle (R):** drag to create four walls with visible measurements.
 - **Wall (W):** drag to draw a single wall. Hold Shift for horizontal/vertical alignment.
-- **Pan (H):** drag the canvas. Scroll or use the +/− controls to zoom.
+- **Pan (H):** drag the canvas. From any tool, hold the middle mouse button (wheel) and drag to pan temporarily; releasing it restores the tool cursor. Scroll or use the +/− controls to zoom.
+- **Wall references:** when drawing a wall or rectangle, an orange marker identifies a nearby endpoint or a point on an existing wall. Starting or ending there uses that exact point, ahead of grid snapping or Shift alignment. Detection uses a 12-pixel radius at any zoom level; existing walls remain independent.
 - Select a wall and use **Properties** to set length, angle and thickness. Click **Apply dimensions**.
 - Delete removes the selected wall. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redoes. Escape cancels a drag.
 
@@ -28,7 +29,7 @@ If storage cannot be read or written, the app warns instead of claiming the plan
 
 ## Check the code
 
-Run `node --test model.test.cjs`, `node --check app.js` and `node --check server.cjs`.
+Run `node --test app.test.cjs model.test.cjs`, `node --check app.js` and `node --check server.cjs`.
 
 - `model.js`: geometry and versioned, validated plan serialization.
 - `app.js`: SVG drawing, pointer interactions, history and browser storage.

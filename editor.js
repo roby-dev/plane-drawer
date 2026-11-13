@@ -7,7 +7,7 @@ const $ = id => document.getElementById(id);
 const STORAGE_KEY = 'planedrawer.plan.v1';
 const HISTORY_LIMIT = 100;
 const BASE_SCALE = 55; // screen pixels per meter at 100% zoom
-const newPlan = () => ({ name: 'Untitled plan', walls: [], symbols: [] });
+const newPlan = () => ({ name: 'Untitled plan', walls: [], symbols: [], rooms: {} });
 const homeCamera = () => ({ x: -2, y: -2, scale: BASE_SCALE });
 
 // The single source of mutable editor state.
@@ -50,6 +50,7 @@ function selectedWalls() {
   return room.length === 4 ? room : [w];
 }
 const selectedSymbol = () => state.plan.symbols.find(x => x.id === state.selectedSymbolId);
+const replaceSymbol = next => { state.plan.symbols = state.plan.symbols.map(s => s.id === next.id ? next : s); };
 // Swaps in edited walls by id, keeping their order in the plan.
 function replaceWalls(changed) {
   const byId = new Map(changed.map(w => [w.id, w]));
@@ -94,7 +95,10 @@ function removeSelected() {
   if (state.selectedSymbolId) { plan.symbols = plan.symbols.filter(x => x.id !== state.selectedSymbolId); select(); commit(before); return; }
   if (!state.selectedWallId) return;
   const ids = new Set(selectedWalls().map(w => w.id));
-  plan.walls = plan.walls.filter(w => !ids.has(w.id)); select(); commit(before);
+  plan.walls = plan.walls.filter(w => !ids.has(w.id));
+  // Forget the names of rooms that no longer have walls.
+  for (const room of Object.keys(plan.rooms)) if (!plan.walls.some(w => w.room === room)) delete plan.rooms[room];
+  select(); commit(before);
 }
 function rotateSelected() {
   const sym = selectedSymbol(); if (!sym) return;

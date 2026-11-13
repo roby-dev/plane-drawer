@@ -11,7 +11,9 @@ A local 2D floor plan sketchpad built with plain JavaScript and SVG. No packages
 
 - **Select & move (V):** drag a room to move it as one; drag its corner handles to resize it. Alt+click a wall to select just that wall (then drag it or its endpoints). Rooms also have Width/Height fields in Properties.
 - **Copy (Ctrl+drag):** hold Ctrl while dragging a room, wall or symbol to leave the original in place and drag a copy.
-- **Symbols:** pick one from the left panel (door, window, toilet, sink, shower, kitchen sink, laundry sink, washing machine, garage door, car (top view), cold/hot water connection, drain) and click to place; keep clicking to place more. Doors and windows snap onto the nearest wall and open toward the side you click. While placing or dragging, a symbol snaps into line with other symbols and wall corners (a purple dashed guide shows the match), so two doors can face each other exactly. Select a symbol to drag it; **Q** rotates it 90°, Delete removes it, Esc finishes.
+- **Symbols:** pick one from the left panel (door, window, toilet, sink, shower, kitchen sink, laundry sink, washing machine, garage door, sliding glass door, stairs up, stairs down, car (top view), cold/hot water connection, drain) and click to place; keep clicking to place more. Doors and windows snap onto the nearest wall and open toward the side you click. Otherwise a symbol goes exactly where you put it. To line it up with other symbols and wall corners, hold **left Ctrl + left Alt** while placing or dragging (a purple dashed guide shows the match), so two doors can face each other exactly; the right Alt (AltGr) does not count, and Ctrl+Alt does not copy. Select a symbol to drag it; **Q** rotates it 90°, Delete removes it, Esc finishes.
+- **Rotate and resize with the mouse:** a selected symbol shows handles. Drag the knob above it to rotate (15° steps); drag the side, bottom or corner dot to change its width, depth or both around its center. Its Width and Depth fields in Properties do the same by typing (0.10–20 m); copies keep the size.
+- **Room names:** select a room and type a Name (up to 40 characters) in Properties; it shows in the middle of the room and is kept by Ctrl+drag copies. Clear the field to remove it.
 - **Measure (hold Ctrl):** hover a corner, then slide along a wall: a dashed line and the distance in meters from that corner follow your cursor. Click (with the Wall tool) to start a line exactly there.
 - **Rectangle (R):** drag to create four walls with visible measurements.
 - **Wall (W):** drag to draw a single wall. Hold Shift (even mid-drag) to force a perfectly horizontal or vertical line; the orange marker then shows where that line reaches an endpoint or crosses another wall, and the end snaps there.
@@ -24,7 +26,7 @@ Measurements use meters along wall centerlines. Grid snapping uses 10 cm steps. 
 
 ## Keep your work
 
-Changes save automatically in localStorage for this browser and address. Use the same address each time. Clearing browser data, private browsing, or changing browsers can lose access to a plan. **Export plan** saves a JSON backup; **Import plan** restores it after confirmation. Undo history lasts only for the current page session.
+Changes save automatically in localStorage for this browser and address. Use the same address each time. Clearing browser data, private browsing, or changing browsers can lose access to a plan. **Export plan** saves a JSON backup; **Import plan** restores it after confirmation. **Export SVG** downloads the whole plan as a drawing (walls, dimensions if shown, symbols and room names on white, 1 m = 55 px) to open or print elsewhere; it cannot be imported back. Undo history lasts only for the current page session.
 
 If storage cannot be read or written, the app warns instead of claiming the plan was saved. Invalid saved content is not overwritten automatically. Export your current work before explicitly starting or importing a replacement plan.
 

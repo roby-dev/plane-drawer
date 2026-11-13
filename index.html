@@ -16,6 +16,7 @@
 <header>
   <a class="brand" href="./" aria-label="PlaneDrawer home"><span class="brand-mark">⌑</span> PlaneDrawer<span class="badge">2D studio</span></a>
   <div class="document"><input id="plan-name" aria-label="Plan name" value="Untitled plan" maxlength="80"><span id="save-state" role="status">Stored on this device</span></div>
+  <button id="export-svg" title="Download the plan as an SVG drawing">↓ Export SVG</button>
   <button id="export" class="primary">↓ Export plan</button>
 </header>
 <main>
@@ -39,7 +40,7 @@
     <div id="drawing">
       <svg id="canvas" tabindex="0" aria-label="Drawing canvas. Choose Rectangle or Wall, then drag to draw." xmlns="http://www.w3.org/2000/svg">
         <defs><pattern id="grid" width="0.1" height="0.1" patternUnits="userSpaceOnUse"><path d="M .1 0 H 0 V .1" fill="none" stroke="#dae4ed" stroke-width=".008"/></pattern><pattern id="major-grid" width="1" height="1" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="url(#grid)"/><path d="M 1 0 H 0 V 1" fill="none" stroke="#c0d0df" stroke-width=".012"/></pattern></defs>
-        <rect id="paper" fill="url(#major-grid)"/><g id="walls"></g><g id="symbols"></g><g id="preview"></g><g id="handles"></g>
+        <rect id="paper" fill="url(#major-grid)"/><g id="walls"></g><g id="symbols"></g><g id="labels"></g><g id="preview"></g><g id="handles"></g>
       </svg>
       <div id="empty"><div class="empty-icon">⌑</div><h2>Make room for your ideas.</h2><p>Choose Rectangle and drag to draw your first room.<br>Every wall can be moved and measured.</p><button id="start" class="primary">Draw my first room</button><button id="example" class="text-button">Try a sample plan</button></div>
       <div class="zoom"><button id="zoom-out" aria-label="Zoom out">−</button><output id="zoom-level">100%</output><button id="zoom-in" aria-label="Zoom in">+</button></div>
@@ -57,11 +58,15 @@
       <button type="submit" class="primary">Apply dimensions</button><button id="delete" type="button" class="danger">Delete wall</button>
       <p class="muted">Dimensions follow the wall centerline. Moving one wall does not move its neighbors.</p>
     </form>
-    <div id="symbol-properties" hidden>
-      <p class="muted">Drag it on the canvas to move it. Doors and windows snap onto walls.</p>
+    <form id="symbol-properties" hidden>
+      <label>Width <span>m</span><input id="symbol-width" type="number" min=".1" max="20" step=".01" required></label>
+      <label>Depth <span>m</span><input id="symbol-depth" type="number" min=".1" max="20" step=".01" required></label>
+      <button type="submit" class="primary">Apply size</button>
       <button id="symbol-rotate" type="button">↻ Rotate 90° <kbd>Q</kbd></button><button id="symbol-delete" type="button" class="danger">Delete</button>
-    </div>
+      <p class="muted">Drag it on the canvas to move it. Doors and windows snap onto walls.</p>
+    </form>
     <form id="room-properties" hidden>
+      <label>Name<input id="room-name" type="text" maxlength="40" placeholder="Kitchen, bedroom…"></label>
       <label>Width <span>m</span><input id="room-width" type="number" min=".1" max="1000" step=".01" required></label>
       <label>Height <span>m</span><input id="room-height" type="number" min=".1" max="1000" step=".01" required></label>
       <label>Wall thickness <span>m</span><input id="room-thickness" type="number" min=".05" max="1" step=".01" required></label>

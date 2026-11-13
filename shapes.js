@@ -4,7 +4,20 @@
 const SYMBOL_INK = { stroke: '#344c63', 'stroke-width': .025, fill: '#fff', 'stroke-linejoin': 'round' };
 const SYMBOL_PAPER = '#fbfdff';
 const SYMBOL_LABEL = { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': .15, fill: '#fff', stroke: 'none', 'font-family': 'Segoe UI, sans-serif' };
+// A straight flight of 12 treads. The walking line starts with a dot at the bottom step and ends with an arrow
+// at the top step; going down, the line runs the other way.
+function stairs(add, up) {
+  add('rect', { x: -.5, y: -1.5, width: 1, height: 3 });
+  for (let i = 1; i < 12; i++) add('line', { x1: -.5, y1: -1.5 + i * .25, x2: .5, y2: -1.5 + i * .25 });
+  const [from, to] = up ? [1.375, -1.375] : [-1.375, 1.375], head = up ? .15 : -.15;
+  add('line', { x1: 0, y1: from, x2: 0, y2: to, stroke: '#3471d5', 'stroke-width': .03 });
+  add('circle', { cx: 0, cy: from, r: .05, fill: '#3471d5', stroke: 'none' });
+  add('path', { d: 'M -.12 ' + (to + head) + ' L 0 ' + to + ' L .12 ' + (to + head), fill: 'none', stroke: '#3471d5', 'stroke-width': .03 });
+  add('text', { ...SYMBOL_LABEL, x: .3, y: from, 'font-size': .18, fill: '#344c63' }, up ? 'UP' : 'DN');
+}
 const SYMBOL_SHAPES = {
+  'stairs-up': add => stairs(add, true),
+  'stairs-down': add => stairs(add, false),
   door: add => {
     add('rect', { x: -.35, y: -.125, width: .7, height: .25, fill: SYMBOL_PAPER, stroke: 'none' });
     add('line', { x1: -.35, y1: -.125, x2: -.35, y2: .125 }); add('line', { x1: .35, y1: -.125, x2: .35, y2: .125 });
@@ -43,6 +56,14 @@ const SYMBOL_SHAPES = {
     add('rect', { x: -1.2, y: -.05, width: 2.4, height: .1 });
     [-.6, 0, .6].forEach(x => add('line', { x1: x, y1: -.05, x2: x, y2: .05, stroke: '#9bb0c4' }));
     add('rect', { x: -1.2, y: .05, width: 2.4, height: .4, fill: 'none', 'stroke-dasharray': '.08 .06', stroke: '#9bb0c4' });
+  },
+  // Two overlapping glass panels; the arrow shows the panel that slides.
+  'sliding-door': add => {
+    add('rect', { x: -.9, y: -.125, width: 1.8, height: .25, fill: SYMBOL_PAPER, stroke: 'none' });
+    add('line', { x1: -.9, y1: -.125, x2: -.9, y2: .125 }); add('line', { x1: .9, y1: -.125, x2: .9, y2: .125 });
+    add('rect', { x: -.9, y: -.07, width: .95, height: .05, fill: '#dcecf8' });
+    add('rect', { x: -.05, y: .02, width: .95, height: .05, fill: '#dcecf8' });
+    add('path', { d: 'M .65 .22 H .15 M .25 .17 L .15 .22 L .25 .27', fill: 'none', stroke: '#9bb0c4' });
   },
   car: add => {
     add('rect', { x: -.83, y: -1.8825, width: 1.66, height: 3.765, rx: .4 });

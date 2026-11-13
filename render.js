@@ -26,11 +26,12 @@ function canvasCursor() {
   return { select: 'default', pan: 'grab' }[state.tool] || 'crosshair';
 }
 
-function drawWall(w, parent, { preview = false, active = false } = {}) {
+// `interactive` adds the invisible, wider hit area the pointer uses; previews and exports leave it out.
+function drawWall(w, parent, { preview = false, active = false, interactive = !preview } = {}) {
   const group = el('g', {}, parent);
   const coords = { x1: w.a.x, y1: w.a.y, x2: w.b.x, y2: w.b.y };
   el('line', { ...coords, stroke: preview || active ? COLORS.accent : COLORS.ink, 'stroke-width': w.thickness, 'stroke-linecap': 'square', opacity: preview ? .65 : 1 }, group);
-  if (!preview) {
+  if (interactive) {
     const cursor = isPanning() ? 'grabbing' : state.tool === 'select' ? 'move' : 'inherit';
     el('line', { ...coords, stroke: 'transparent', 'stroke-width': Math.max(w.thickness, px(18)), cursor }, group).dataset.wall = w.id;
   }
@@ -47,20 +48,46 @@ function drawDimension(w, parent, active) {
   if (angle > 90 || angle < -90) angle += 180;
   el('text', { x, y, transform: 'rotate(' + angle + ' ' + x + ' ' + y + ')', fill: active ? COLORS.accentDark : COLORS.dimension, 'font-size': px(12), 'font-family': FONT, 'text-anchor': 'middle', 'dominant-baseline': 'central', ...halo(5), 'pointer-events': 'none' }, parent, distance.toFixed(2) + ' m');
 }
-function drawSymbol(sym, parent, preview = false) {
-  const def = M.SYMBOLS[sym.type];
-  const g = el('g', { transform: 'translate(' + sym.x + ' ' + sym.y + ') rotate(' + sym.rotation + ')', opacity: preview ? .6 : 1 }, parent);
-  SYMBOL_SHAPES[sym.type]((tag, attrs, text) => el(tag, { ...SYMBOL_INK, ...attrs }, g, text));
-  if (preview) return;
-  const w = Math.max(def.w, .3) + .1, h = Math.max(def.h, .3) + .1, box = { x: -w / 2, y: -h / 2, width: w, height: h };
+const symbolTransform = sym => 'translate(' + sym.x + ' ' + sym.y + ') rotate(' + sym.rotation + ')';
+// Clickable area around a symbol in its own coordinates, never smaller than 40 cm so small fixtures stay easy to pick.
+function symbolBox(sym) {
+  const size = M.symbolSize(sym), w = Math.max(size.w, .3) + .1, h = Math.max(size.h, .3) + .1;
+  return { x: -w / 2, y: -h / 2, width: w, height: h };
+}
+function drawSymbol(sym, parent, { preview = false, interactive = !preview } = {}) {
+  const def = M.SYMBOLS[sym.type], size = M.symbolSize(sym);
+  const g = el('g', { transform: symbolTransform(sym), opacity: preview ? .6 : 1 }, parent);
+  // Shapes are drawn at the catalog size; a resized symbol scales them.
+  const shape = size.w === def.w && size.h === def.h ? g : el('g', { transform: 'scale(' + size.w / def.w + ' ' + size.h / def.h + ')' }, g);
+  SYMBOL_SHAPES[sym.type]((tag, attrs, text) => el(tag, { ...SYMBOL_INK, ...attrs }, shape, text));
+  if (!interactive) return;
+  const box = symbolBox(sym);
   if (sym.id === state.selectedSymbolId) el('rect', { ...box, fill: 'none', stroke: COLORS.accent, 'stroke-width': px(2), 'stroke-dasharray': dashes(5, 3), 'pointer-events': 'none' }, g);
   el('rect', { ...box, fill: 'transparent', cursor: state.tool === 'select' ? 'move' : 'inherit' }, g).dataset.symbol = sym.id;
+}
+// Handles on the selected symbol: a knob above it to rotate, and edge/corner dots to resize.
+function drawSymbolHandles(sym) {
+  const g = el('g', { transform: symbolTransform(sym) }, $('handles')), box = symbolBox(sym);
+  const right = box.x + box.width, bottom = box.y + box.height, knob = box.y - px(24);
+  el('line', { x1: 0, y1: box.y, x2: 0, y2: knob, stroke: COLORS.accentDark, 'stroke-width': px(1.5), 'pointer-events': 'none' }, g);
+  const handle = (name, x, y, cursor) => { el('circle', { cx: x, cy: y, r: px(6), fill: 'white', stroke: COLORS.accentDark, 'stroke-width': px(2), cursor }, g).dataset.symbolHandle = name; };
+  handle('rotate', 0, knob, 'grab');
+  handle('w', right, 0, 'ew-resize'); handle('h', 0, bottom, 'ns-resize'); handle('wh', right, bottom, 'nwse-resize');
 }
 // Corner handles for a selected room, endpoint handles for a single wall.
 function drawHandles(group) {
   const handle = (p, radius, cursor) => el('circle', { cx: p.x, cy: p.y, r: px(radius), fill: 'white', stroke: COLORS.accentDark, 'stroke-width': px(2), cursor }, $('handles'));
   if (group.length === 4) M.roomCorners(group).forEach((p, i) => { handle(p, 7, i % 2 ? 'nesw-resize' : 'nwse-resize').dataset.corner = i; });
   else if (group.length) ['a', 'b'].forEach(end => { handle(group[0][end], 6, isPanning() ? 'grabbing' : 'crosshair').dataset.end = end; });
+}
+// Each named room's name, centered in it.
+function drawRoomLabels(parent) {
+  for (const [room, name] of Object.entries(state.plan.rooms)) {
+    const walls = state.plan.walls.filter(w => w.room === room);
+    if (walls.length !== 4) continue;
+    const b = M.roomBounds(walls);
+    el('text', { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2, fill: COLORS.ink, 'font-size': px(14), 'font-weight': 600, 'font-family': FONT, 'text-anchor': 'middle', 'dominant-baseline': 'central', ...halo(5), 'pointer-events': 'none' }, parent, name);
+  }
 }
 function drawGuide(g, parent) {
   const pad = .4, [x1, y1, x2, y2] = g.axis === 'x' ? [g.value, g.from - pad, g.value, g.to + pad] : [g.from - pad, g.value, g.to + pad, g.value];
@@ -79,7 +106,7 @@ function drawMeasure({ anchor, target, distance }, parent) {
 // Transient feedback: symbol ghost, alignment guides, walls being drawn, snap references and measurements.
 function drawOverlays() {
   const parent = $('preview'), { tool, ghost, gesture, guides, reference, measure } = state;
-  if (tool === 'symbol' && ghost && !gesture) drawSymbol(ghost, parent, true);
+  if (tool === 'symbol' && ghost && !gesture) drawSymbol(ghost, parent, { preview: true });
   guides.forEach(g => drawGuide(g, parent));
   gesture?.preview?.forEach(w => drawWall(w, parent, { preview: true }));
   if (reference && !isPanning()) drawReference(reference, parent);
@@ -98,13 +125,42 @@ function render() {
   const width = svg.clientWidth / camera.scale, height = svg.clientHeight / camera.scale;
   svg.setAttribute('viewBox', [camera.x, camera.y, width, height].join(' '));
   Object.entries({ x: camera.x, y: camera.y, width, height }).forEach(([k, v]) => $('paper').setAttribute(k, v));
-  ['walls', 'symbols', 'handles', 'preview'].forEach(id => $(id).replaceChildren());
-  const group = selectedWalls(), active = new Set(group.map(w => w.id));
-  plan.walls.forEach(w => drawWall(w, $('walls'), { active: active.has(w.id) }));
+  ['walls', 'symbols', 'labels', 'handles', 'preview'].forEach(id => $(id).replaceChildren());
+  const group = selectedWalls(), sym = selectedSymbol();
+  drawPlan({ walls: $('walls'), symbols: $('symbols'), labels: $('labels') }, { selection: group });
   drawHandles(group);
-  plan.symbols.forEach(sym => drawSymbol(sym, $('symbols')));
+  if (sym && state.tool === 'select') drawSymbolHandles(sym);
   drawOverlays();
   renderStatus();
+}
+// Walls, symbols and room names into the given layers; shared by the canvas and the SVG export.
+function drawPlan(layers, { selection = [], interactive = true } = {}) {
+  const active = new Set(selection.map(w => w.id));
+  state.plan.walls.forEach(w => drawWall(w, layers.walls, { active: active.has(w.id), interactive }));
+  state.plan.symbols.forEach(sym => drawSymbol(sym, layers.symbols, { interactive }));
+  drawRoomLabels(layers.labels);
+}
+// The plan as standalone SVG markup at 100% zoom (1 m = 55 px), without grid, selection or handles; null when empty.
+function planSvg() {
+  const { plan } = state, pad = 1;
+  const points = [...plan.walls.flatMap(w => [w.a, w.b]), ...plan.symbols.flatMap(s => {
+    const { w, h } = M.symbolSize(s), r = Math.hypot(w, h) / 2;
+    return [{ x: s.x - r, y: s.y - r }, { x: s.x + r, y: s.y + r }];
+  })];
+  if (!points.length) return null;
+  const xs = points.map(p => p.x), ys = points.map(p => p.y);
+  const x = M.round(Math.min(...xs) - pad), y = M.round(Math.min(...ys) - pad);
+  const width = M.round(Math.max(...xs) + pad - x), height = M.round(Math.max(...ys) + pad - y);
+  // Labels are sized in screen pixels, so draw them as if the camera were at 100%.
+  const camera = state.camera;
+  state.camera = { x, y, scale: BASE_SCALE };
+  try {
+    const root = document.createElementNS(SVG_NS, 'svg');
+    [['viewBox', [x, y, width, height].join(' ')], ['width', M.round(width * BASE_SCALE)], ['height', M.round(height * BASE_SCALE)]].forEach(([k, v]) => root.setAttribute(k, v));
+    el('rect', { x, y, width, height, fill: '#fff' }, root);
+    drawPlan({ walls: el('g', {}, root), symbols: el('g', {}, root), labels: el('g', {}, root) }, { interactive: false });
+    return new XMLSerializer().serializeToString(root);
+  } finally { state.camera = camera; }
 }
 
 // The Properties panel: room, wall or symbol fields, depending on the selection.
@@ -116,10 +172,15 @@ function renderInspector() {
     const b = M.roomBounds(group);
     $('room-width').value = M.round(b.right - b.left).toFixed(2); $('room-height').value = M.round(b.bottom - b.top).toFixed(2);
     $('room-thickness').value = w.thickness;
+    $('room-name').value = state.plan.rooms[w.room] || '';
   } else if (w) {
     $('length').value = M.length(w).toFixed(2);
     $('angle').value = (Math.atan2(w.b.y - w.a.y, w.b.x - w.a.x) * 180 / Math.PI).toFixed(1);
     $('thickness').value = w.thickness;
+  }
+  if (sym) {
+    const size = M.symbolSize(sym);
+    $('symbol-width').value = size.w.toFixed(2); $('symbol-depth').value = size.h.toFixed(2);
   }
 }
 

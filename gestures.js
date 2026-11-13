@@ -15,7 +15,14 @@ function point(e, snap = true) {
 function alignTargets(excludeId) {
   return [...state.plan.symbols.filter(x => x.id !== excludeId), ...state.plan.walls.flatMap(w => [w.a, w.b])].map(t => ({ x: t.x, y: t.y }));
 }
-function align(at, free, excludeId) {
+// Keys physically held, by position (e.code), so the left and right Ctrl/Alt keys can be told apart.
+const heldKeys = new Set();
+// Alignment only while left Ctrl + left Alt are held. On Windows AltGr sends Ctrl + right Alt, so typing with it does not align.
+const aligning = e => !!(e.ctrlKey && e.altKey) && heldKeys.has('ControlLeft') && heldKeys.has('AltLeft');
+// Ctrl alone copies (on drag) and measures (on hover); with Alt it means aligning instead.
+const ctrlOnly = e => !!e.ctrlKey && !e.altKey;
+function align(at, free, excludeId, e) {
+  if (!aligning(e)) return { x: at.x, y: at.y, rotation: at.rotation, guides: [] };
   const a = M.findAlignment(at, alignTargets(excludeId), px(ALIGN_RADIUS), free);
   return { x: a.x, y: a.y, rotation: at.rotation, guides: a.guides };
 }
@@ -25,11 +32,17 @@ function placement(e, type, rotation = 0, excludeId) {
     const hit = M.snapToWall(point(e, false), state.plan.walls, px(WALL_SYMBOL_RADIUS));
     if (hit) {
       const r = Math.abs(hit.rotation), along = r === 0 || r === 180 ? { x: true, y: false } : r === 90 ? { x: false, y: true } : { x: false, y: false };
-      return align(hit, along, excludeId);
+      return align(hit, along, excludeId, e);
     }
   }
-  const p = point(e); return align({ x: p.x, y: p.y, rotation }, { x: true, y: true }, excludeId);
+  const p = point(e); return align({ x: p.x, y: p.y, rotation }, { x: true, y: true }, excludeId, e);
 }
+// A plan point in a symbol's own coordinates (its +x runs along its width, +y along its depth).
+function toLocal(p, sym) {
+  const r = -sym.rotation * Math.PI / 180, dx = p.x - sym.x, dy = p.y - sym.y;
+  return { x: dx * Math.cos(r) - dy * Math.sin(r), y: dx * Math.sin(r) + dy * Math.cos(r) };
+}
+const normalizeRotation = r => { r = ((r % 360) + 360) % 360; return r > 180 ? r - 360 : r; };
 // Cursor point, replaced by a nearby wall reference (which is also shown) when there is one.
 function drawingPoint(e, walls = state.plan.walls) {
   state.reference = M.findReference(point(e, false), walls, px(SNAP_RADIUS));
@@ -75,9 +88,10 @@ function placeSymbol(e) {
 function duplicateSelection() {
   const restore = { selectedWallId: state.selectedWallId, selectedSymbolId: state.selectedSymbolId, single: state.single };
   const sym = selectedSymbol();
-  if (sym) { const copy = M.symbol(sym.type, sym.x, sym.y, sym.rotation); state.plan.symbols.push(copy); state.selectedSymbolId = copy.id; return restore; }
-  const copies = M.duplicateWalls(selectedWalls());
+  if (sym) { const copy = M.copySymbol(sym); state.plan.symbols.push(copy); state.selectedSymbolId = copy.id; return restore; }
+  const walls = selectedWalls(), copies = M.duplicateWalls(walls), rooms = state.plan.rooms;
   if (!copies.length) return null;
+  copies.forEach((c, i) => { const name = rooms[walls[i].room]; if (c.room && name) rooms[c.room] = name; });
   state.plan.walls.push(...copies); state.selectedWallId = copies[0].id; return restore;
 }
 
@@ -97,10 +111,16 @@ function startGesture(e) {
 }
 // Select tool: pick what is under the pointer (Ctrl copies it) and start moving it, or resize from a handle.
 function startSelectGesture(e, start) {
-  const { end, corner, wall: wallId, symbol: symbolId } = e.target.dataset, onHandle = end !== undefined || corner !== undefined;
+  const { end, corner, wall: wallId, symbol: symbolId, symbolHandle } = e.target.dataset;
+  const onHandle = end !== undefined || corner !== undefined || symbolHandle !== undefined;
+  if (symbolHandle && selectedSymbol()) {
+    const kind = symbolHandle === 'rotate' ? 'symbol-rotate' : 'symbol-resize';
+    state.gesture = { kind, handle: symbolHandle, start: point(e, false), original: { ...selectedSymbol() }, before: snapshot() };
+    renderInspector(); return;
+  }
   if (symbolId) select(null, symbolId);
   else if (!onHandle) select(wallId || null, null, !!wallId && !!e.altKey);
-  const before = snapshot(), copy = e.ctrlKey && !onHandle && (symbolId || wallId) ? duplicateSelection() : null;
+  const before = snapshot(), copy = ctrlOnly(e) && !onHandle && (symbolId || wallId) ? duplicateSelection() : null;
   const group = selectedWalls(), originals = structuredClone(group), symbol = selectedSymbol();
   if (symbol) state.gesture = { kind: 'symbol', start, original: { ...symbol }, before, copy };
   else if (corner !== undefined) state.gesture = { kind: 'corner', corner: +corner, start, originals, points: M.roomCorners(originals), before };
@@ -127,10 +147,24 @@ const DRAG = {
     const o = g.original;
     let at;
     if (M.SYMBOLS[o.type].wall) at = placement(e, o.type, o.rotation, o.id);
-    else { const p = point(e); at = align({ x: M.round(o.x + p.x - g.start.x), y: M.round(o.y + p.y - g.start.y), rotation: o.rotation }, { x: true, y: true }, o.id); }
+    else { const p = point(e); at = align({ x: M.round(o.x + p.x - g.start.x), y: M.round(o.y + p.y - g.start.y), rotation: o.rotation }, { x: true, y: true }, o.id, e); }
     if (at.x !== o.x || at.y !== o.y) g.moved = true;
-    state.plan.symbols = state.plan.symbols.map(s => s.id === o.id ? { ...o, x: at.x, y: at.y, rotation: at.rotation } : s);
+    replaceSymbol({ ...o, x: at.x, y: at.y, rotation: at.rotation });
     state.guides = at.guides;
+  },
+  // Point the knob at the cursor, in 15° steps.
+  'symbol-rotate'(g, e) {
+    const o = g.original, p = point(e, false);
+    const degrees = Math.atan2(p.y - o.y, p.x - o.x) * 180 / Math.PI + 90;
+    replaceSymbol({ ...o, rotation: normalizeRotation(Math.round(degrees / 15) * 15) });
+  },
+  // Grow or shrink symmetrically around the center by how far the handle moved along the symbol's own axes.
+  'symbol-resize'(g, e) {
+    const o = g.original, size = M.symbolSize(o), from = toLocal(g.start, o), to = toLocal(point(e, false), o);
+    const fit = n => Math.min(20, Math.max(.1, Math.round(n * 100) / 100));
+    const w = g.handle.includes('w') ? fit(size.w + 2 * (to.x - from.x)) : size.w;
+    const h = g.handle.includes('h') ? fit(size.h + 2 * (to.y - from.y)) : size.h;
+    replaceSymbol(M.resizeSymbol(o, w, h));
   },
   corner(g, e) {
     const p = editPoint(e, g), opposite = g.points[(g.corner + 2) % 4];
@@ -142,10 +176,10 @@ const DRAG = {
     if (M.length(next) >= MIN_WALL) replaceWalls([next]);
   }
 };
-const EDIT_GESTURES = new Set(['move', 'endpoint', 'corner', 'symbol']);
+const EDIT_GESTURES = new Set(['move', 'endpoint', 'corner', 'symbol', 'symbol-rotate', 'symbol-resize']);
 
 function updateGesture(e) {
-  state.lastPointer = { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey };
+  state.lastPointer = { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
   const g = state.gesture;
   if (!g) { hover(e); return; }
   DRAG[g.kind](g, e);
@@ -154,7 +188,7 @@ function updateGesture(e) {
 // No button pressed: measuring (Ctrl), snap references while drawing, and the symbol ghost.
 function hover(e) {
   const { tool } = state, hadMeasure = !!state.measure;
-  state.measure = e.ctrlKey ? M.findMeasure(point(e, false), state.plan.walls, px(SNAP_RADIUS), state.measure?.latched ? state.measure.anchor : undefined) : null;
+  state.measure = ctrlOnly(e) ? M.findMeasure(point(e, false), state.plan.walls, px(SNAP_RADIUS), state.measure?.latched ? state.measure.anchor : undefined) : null;
   if (isDrawingTool(tool)) drawingPoint(e);
   if (tool === 'symbol') {
     const at = placement(e, state.symbolType);
@@ -193,6 +227,15 @@ svg.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); 
 svg.addEventListener('pointercancel', cancelGesture);
 svg.addEventListener('lostpointercapture', cancelGesture);
 svg.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
-// Shift and Ctrl take effect immediately, even if the mouse is not moving.
-const onModifier = e => { if (['Shift', 'Control'].includes(e.key) && state.lastPointer) updateGesture({ ...state.lastPointer, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey }); };
+// Registered before onModifier so it sees the keys as they are after this event.
+document.addEventListener('keydown', e => {
+  heldKeys.add(e.code);
+  // Keep Alt from opening the browser menu while it is used for aligning.
+  if (e.key === 'Alt' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) e.preventDefault?.();
+});
+document.addEventListener('keyup', e => heldKeys.delete(e.code));
+// Key releases are missed while another window has focus.
+globalThis.addEventListener?.('blur', () => heldKeys.clear());
+// Shift, Ctrl and Alt take effect immediately, even if the mouse is not moving.
+const onModifier = e => { if (['Shift', 'Control', 'Alt'].includes(e.key) && state.lastPointer) updateGesture({ ...state.lastPointer, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey }); };
 document.addEventListener('keydown', onModifier); document.addEventListener('keyup', onModifier);

@@ -24,9 +24,21 @@
     'water-hot': { label: 'Hot water', w: .24, h: .24 },
     drain: { label: 'Drain', w: .24, h: .24 },
     'garage-door': { label: 'Garage door', w: 2.4, h: .5, wall: true },
+    'sliding-door': { label: 'Sliding glass door', w: 1.8, h: .25, wall: true },
+    'stairs-up': { label: 'Stairs up', w: 1, h: 3 },
+    'stairs-down': { label: 'Stairs down', w: 1, h: 3 },
     car: { label: 'Car', w: 1.66, h: 3.765 }
   };
   const symbol = (type, x, y, rotation = 0) => ({ id: globalThis.crypto.randomUUID(), type, x: round(x), y: round(y), rotation });
+  const copySymbol = s => ({ ...s, id: globalThis.crypto.randomUUID() });
+  // A symbol's size in meters: its own `w`/`h` when resized, otherwise the catalog default.
+  const symbolSize = s => ({ w: s.w ?? SYMBOLS[s.type].w, h: s.h ?? SYMBOLS[s.type].h });
+  const validSymbolSize = n => Number.isFinite(n) && n >= .1 && n <= 20;
+  function resizeSymbol(s, w, h) {
+    if (!validSymbolSize(w) || !validSymbolSize(h)) throw new Error('Invalid size');
+    return { ...s, w: round(w), h: round(h) };
+  }
+  const ROOM_NAME_MAX = 40;
   // Closest point on a wall plus the wall's angle; the symbol faces the side of the wall the cursor is on.
   function snapToWall(point, walls, tolerance) {
     let best = tolerance, found = null;
@@ -170,16 +182,22 @@
     if (!Array.isArray(symbols) || symbols.length > 2000) throw new Error('Invalid plan');
     for (const s of symbols) {
       if (!s || typeof s.id !== 'string' || symbolIds.has(s.id) || !SYMBOLS[s.type] || !point(s) || !Number.isFinite(s.rotation)) throw new Error('Invalid symbol');
+      if ((s.w !== undefined && !validSymbolSize(s.w)) || (s.h !== undefined && !validSymbolSize(s.h))) throw new Error('Invalid symbol');
       symbolIds.add(s.id);
     }
-    return { name: data.name, symbols: symbols.map(s => ({ id: s.id, type: s.type, x: s.x, y: s.y, rotation: s.rotation })), walls: data.walls.map(w => ({ id: w.id, a: { x: w.a.x, y: w.a.y }, b: { x: w.b.x, y: w.b.y }, thickness: w.thickness, ...(w.room ? { room: w.room } : {}) })) };
+    // Room names, keyed by the `room` id their walls share.
+    const rooms = data.rooms === undefined ? {} : data.rooms;
+    if (!rooms || typeof rooms !== 'object' || Array.isArray(rooms) || Object.keys(rooms).length > 5000) throw new Error('Invalid plan');
+    for (const [id, name] of Object.entries(rooms)) if (id.length > 64 || typeof name !== 'string' || !name || name.length > ROOM_NAME_MAX) throw new Error('Invalid room');
+    const size = s => ({ ...(s.w !== undefined ? { w: s.w } : {}), ...(s.h !== undefined ? { h: s.h } : {}) });
+    return { name: data.name, rooms: { ...rooms }, symbols: symbols.map(s => ({ id: s.id, type: s.type, x: s.x, y: s.y, rotation: s.rotation, ...size(s) })), walls: data.walls.map(w => ({ id: w.id, a: { x: w.a.x, y: w.a.y }, b: { x: w.b.x, y: w.b.y }, thickness: w.thickness, ...(w.room ? { room: w.room } : {}) })) };
   }
   function encode(plan) {
-    const text = JSON.stringify({ version: 1, name: plan.name, walls: plan.walls, symbols: plan.symbols || [] });
+    const text = JSON.stringify({ version: 1, name: plan.name, walls: plan.walls, symbols: plan.symbols || [], rooms: plan.rooms || {} });
     decode(text);
     return text;
   }
-  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, roomCorners, resizeRoom, SYMBOLS, symbol, snapToWall };
+  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, roomCorners, resizeRoom, SYMBOLS, symbol, copySymbol, symbolSize, resizeSymbol, ROOM_NAME_MAX, snapToWall };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PlanModel = api;
 })(globalThis);

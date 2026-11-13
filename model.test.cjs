@@ -21,7 +21,7 @@ test('moving and resizing walls preserves thickness and supports any direction',
 });
 
 test('saved plans round-trip and malformed data is rejected without changing storage', () => {
-  const data = { name: 'My plan', walls: model.rectangle({ x: 0, y: 0 }, { x: 4, y: 3 }), symbols: [model.symbol('toilet', 1, 1, 90)] };
+  const data = { name: 'My plan', walls: model.rectangle({ x: 0, y: 0 }, { x: 4, y: 3 }), symbols: [model.symbol('toilet', 1, 1, 90)], rooms: {} };
   assert.deepEqual(model.decode(model.encode(data)), data);
   assert.throws(() => model.decode('{broken'));
   assert.throws(() => model.decode(JSON.stringify({ version: 1, name: 'Bad', walls: [{ id: 'x' }] })));
@@ -105,4 +105,26 @@ test('alignment snaps a point to the nearest matching x or y and reports the gui
   assert.deepEqual([onlyX.x, onlyX.y, onlyX.guides.length], [2, 2.95, 1]);
   const far = model.findAlignment({ x: 3.5, y: 1.5 }, targets, .15);
   assert.deepEqual([far.x, far.y, far.guides.length], [3.5, 1.5, 0]);
+});
+
+test('sliding glass door, symbol sizes and room names round-trip through a saved plan', () => {
+  assert.ok(model.SYMBOLS['sliding-door'].wall);
+  const door = model.resizeSymbol(model.symbol('door', 1, 2), .9, .8);
+  assert.deepEqual(model.symbolSize(door), { w: .9, h: .8 });
+  assert.deepEqual(model.symbolSize(model.symbol('door', 0, 0)), { w: .7, h: .7 });
+  assert.throws(() => model.resizeSymbol(door, .05, 1));
+  assert.throws(() => model.resizeSymbol(door, 1, 25));
+  const copy = model.copySymbol(door);
+  assert.notEqual(copy.id, door.id);
+  assert.deepEqual(model.symbolSize(copy), { w: .9, h: .8 });
+  const walls = model.rectangle({ x: 0, y: 0 }, { x: 4, y: 3 });
+  const plan = { name: 'x', walls, symbols: [door], rooms: { [walls[0].room]: 'Kitchen' } };
+  const back = model.decode(model.encode(plan));
+  assert.deepEqual(back.rooms, plan.rooms);
+  assert.deepEqual(model.symbolSize(back.symbols[0]), { w: .9, h: .8 });
+  assert.deepEqual(model.decode(JSON.stringify({ version: 1, name: 'x', walls: [] })).rooms, {});
+  const bad = extra => () => model.decode(JSON.stringify({ version: 1, name: 'x', walls: [], ...extra }));
+  assert.throws(bad({ rooms: { a: 'x'.repeat(41) } }));
+  assert.throws(bad({ rooms: [] }));
+  assert.throws(bad({ symbols: [{ id: 'a', type: 'door', x: 0, y: 0, rotation: 0, w: -1 }] }));
 });

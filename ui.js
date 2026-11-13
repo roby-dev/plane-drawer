@@ -1,11 +1,11 @@
 'use strict';
 // Toolbar, symbol palette, inspector forms, file import/export, keyboard shortcuts and startup.
 const TOOL_HINTS = {
-  select: 'Drag a room to move it, its corners to resize. Ctrl+drag copies. Alt+click picks a single wall. Hold Ctrl over a corner and slide along a wall to measure.',
+  select: 'Drag a room to move it, its corners to resize. Ctrl+drag copies. Alt+click picks a single wall. Hold Ctrl over a corner and slide along a wall to measure. A selected symbol has handles to rotate and resize it; hold left Ctrl + left Alt to line it up.',
   rectangle: 'Drag to draw a room. Orange marks snap to existing walls.',
   wall: 'Drag to draw. Orange marks snap to walls; Shift aligns free lines.',
   pan: 'Drag to pan. Hold the middle mouse button from any tool.',
-  symbol: 'Click to place. Doors and windows snap onto walls (click on the side they should open). Purple lines show alignment with other symbols and corners. Q rotates, Esc finishes.'
+  symbol: 'Click to place. Doors and windows snap onto walls (click on the side they should open). Hold left Ctrl + left Alt to line up with other symbols and corners (purple lines). Q rotates, Esc finishes.'
 };
 const TOOL_KEYS = { v: 'select', r: 'rectangle', w: 'wall', h: 'pan' };
 const palette = [];
@@ -46,9 +46,18 @@ $('room-properties').onsubmit = e => {
   const width = +$('room-width').value, height = +$('room-height').value, thickness = +$('room-thickness').value;
   const valid = n => Number.isFinite(n) && n >= .1 && n <= 1000;
   if (!valid(width) || !valid(height) || !(thickness >= .05 && thickness <= 1)) { notify('Enter a width and height between 0.10 and 1000 meters, and a thickness between 0.05 and 1.'); return; }
-  const before = snapshot(), b = M.roomBounds(group);
+  const before = snapshot(), b = M.roomBounds(group), name = $('room-name').value.trim().slice(0, M.ROOM_NAME_MAX);
   replaceWalls(M.resizeRoom(group, { left: b.left, top: b.top, right: b.left + width, bottom: b.top + height }).map(n => ({ ...n, thickness })));
+  if (name) state.plan.rooms[group[0].room] = name; else delete state.plan.rooms[group[0].room];
   commit(before);
+};
+$('symbol-properties').onsubmit = e => {
+  e.preventDefault();
+  const sym = selectedSymbol(); if (!sym) return;
+  const before = snapshot();
+  try {
+    replaceSymbol(M.resizeSymbol(sym, +$('symbol-width').value, +$('symbol-depth').value)); commit(before);
+  } catch { notify('Enter a width and depth between 0.10 and 20 meters.'); }
 };
 
 // Plan and files
@@ -62,10 +71,15 @@ $('clear').onclick = () => {
   if (!confirm('Start a new plan? Export a backup first if you want to keep the current plan.')) return;
   replacePlan(newPlan()); setTool('select'); renderInspector(); fit();
 };
-$('export').onclick = () => {
-  const url = URL.createObjectURL(new Blob([M.encode(state.plan)], { type: 'application/json' }));
-  const link = document.createElement('a'); link.href = url; link.download = (state.plan.name.replace(/[^a-z0-9 -]/gi, '').trim() || 'floor-plan') + '.json';
+function download(text, type, extension) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a'); link.href = url; link.download = (state.plan.name.replace(/[^a-z0-9 -]/gi, '').trim() || 'floor-plan') + extension;
   link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$('export').onclick = () => download(M.encode(state.plan), 'application/json', '.json');
+$('export-svg').onclick = () => {
+  const markup = planSvg();
+  if (markup) download(markup, 'image/svg+xml', '.svg'); else notify('There is nothing to export yet. Draw a wall or place a symbol first.');
 };
 $('import').onclick = () => $('import-file').click();
 $('import-file').onchange = async () => {

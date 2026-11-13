@@ -12,6 +12,7 @@ function loadApp() {
     replaceChildren() { this.children = []; }
     addEventListener(type, callback) { this.listeners[type] = callback; }
     focus() {}
+    click() {}
     setPointerCapture(id) { this.capture = id; }
     hasPointerCapture(id) { return this.capture === id; }
     releasePointerCapture() { this.capture = null; }
@@ -24,13 +25,14 @@ function loadApp() {
   const elements = new Map();
   const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const tools = ['select', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
-  const storage = new Map(), docListeners = {};
-  const context = { PlanModel: model, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: () => new Element(), createElement: () => new Element(), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
+  const storage = new Map(), docListeners = {}, downloads = [];
+  const markup = node => '<' + node.tagName + Object.entries(node.attrs).map(([k, v]) => ' ' + k + '="' + v + '"').join('') + '>' + (node.textContent ?? node.children.map(markup).join('')) + '</' + node.tagName + '>';
+  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: () => new Element(), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
   // Run the app scripts in index.html order, sharing one global scope like the browser does (model.js is injected above).
   vm.createContext(context);
   const scripts = [...fs.readFileSync(require.resolve('./index.html'), 'utf8').matchAll(/<script defer src="([^"]+)">/g)].map(m => m[1]).filter(src => src !== 'model.js');
   for (const src of scripts) vm.runInContext(fs.readFileSync(require.resolve('./' + src), 'utf8'), context, { filename: src });
-  return { get, storage, key: (type, values) => (docListeners[type] || []).forEach(cb => cb({ target: { tagName: 'BODY' }, preventDefault() {}, ...values })), tool: name => tools.find(el => el.dataset.tool === name).onclick(), active: name => tools.find(el => el.dataset.tool === name).attrs['aria-pressed'] };
+  return { get, storage, downloads, key: (type, values) => (docListeners[type] || []).forEach(cb => cb({ target: { tagName: 'BODY' }, preventDefault() {}, ...values })), tool: name => tools.find(el => el.dataset.tool === name).onclick(), active: name => tools.find(el => el.dataset.tool === name).attrs['aria-pressed'] };
 }
 
 test('middle-button drag pans temporarily without drawing or changing the active tool', () => {
@@ -203,30 +205,48 @@ test('a placed symbol can be rotated with Q, moved by dragging, and deleted', ()
   assert.equal(stored(app).symbols.length, 1);
 });
 
-test('a second door lines up with the first one and shows a guide', () => {
+const ALIGN = { ctrlKey: true, altKey: true };
+const hold = (app, ...codes) => codes.forEach(code => app.key('keydown', { key: code.replace(/Left|Right/, ''), code, ...ALIGN }));
+const release = (app, ...codes) => codes.forEach(code => app.key('keyup', { key: code.replace(/Left|Right/, ''), code }));
+const guides = app => app.get('preview').children.filter(c => c.attrs['data-guide']).map(c => c.attrs['data-guide']);
+
+test('symbols line up with other symbols and corners only while left Ctrl + left Alt are held', () => {
   const app = loadApp(), canvas = app.get('canvas'); drawRoom(app); pick(app, 'door');
   canvas.fire('pointermove', { clientX: 220, clientY: 125 }); canvas.fire('pointerdown', { clientX: 220, clientY: 125 }); canvas.fire('pointerup');
   canvas.fire('pointermove', { clientX: 225, clientY: 268 });
-  assert.ok(app.get('preview').children.some(c => c.attrs['data-guide'] === 'x'));
-  canvas.fire('pointerdown', { clientX: 225, clientY: 268 }); canvas.fire('pointerup');
+  assert.deepEqual(guides(app), []);
+  hold(app, 'ControlLeft', 'AltRight'); // AltGr on Windows
+  canvas.fire('pointermove', { clientX: 225, clientY: 268, ...ALIGN });
+  assert.deepEqual(guides(app), []);
+  release(app, 'ControlLeft', 'AltRight'); hold(app, 'ControlLeft', 'AltLeft');
+  canvas.fire('pointermove', { clientX: 225, clientY: 268, ...ALIGN });
+  assert.deepEqual(guides(app), ['x']);
+  canvas.fire('pointerdown', { clientX: 225, clientY: 268, ...ALIGN }); canvas.fire('pointerup', ALIGN);
   const [first, second] = stored(app).symbols;
   assert.deepEqual([second.x, second.y, second.rotation], [first.x, 3, 180]);
   assert.ok(!stored(app).symbols.some(s => 'guides' in s));
-  canvas.fire('pointermove', { clientX: 400, clientY: 400 });
-  assert.ok(!app.get('preview').children.some(c => c.attrs['data-guide']));
+  release(app, 'ControlLeft', 'AltLeft');
+  canvas.fire('pointermove', { clientX: 225, clientY: 268 });
+  assert.deepEqual(guides(app), []);
+  canvas.fire('pointerdown', { clientX: 225, clientY: 268 }); canvas.fire('pointerup');
+  assert.notEqual(stored(app).symbols[2].x, first.x);
 });
 
-test('fixtures align with other symbols and corners while dragging', () => {
+test('dragging a fixture goes where the pointer goes; with left Ctrl+Alt it aligns and does not copy', () => {
   const app = loadApp(), canvas = app.get('canvas'); drawRoom(app); pick(app, 'toilet');
   canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
   pick(app, 'sink');
   canvas.fire('pointerdown', { clientX: 226, clientY: 240 }); canvas.fire('pointerup');
-  assert.equal(stored(app).symbols[1].x, 2);
+  assert.equal(stored(app).symbols[1].x, 2.1);
   app.tool('select');
   const id = stored(app).symbols[1].id;
   canvas.fire('pointerdown', { clientX: 226, clientY: 240, target: { dataset: { symbol: id } } });
-  canvas.fire('pointermove', { clientX: 108, clientY: 240 }); canvas.fire('pointerup');
-  assert.equal(stored(app).symbols[1].x, 0);
+  canvas.fire('pointermove', { clientX: 113, clientY: 240 }); canvas.fire('pointerup');
+  assert.equal(stored(app).symbols[1].x, .1);
+  hold(app, 'ControlLeft', 'AltLeft');
+  canvas.fire('pointerdown', { clientX: 113, clientY: 240, ...ALIGN, target: { dataset: { symbol: id } } });
+  canvas.fire('pointermove', { clientX: 113, clientY: 240, ...ALIGN }); canvas.fire('pointerup', ALIGN);
+  assert.deepEqual(stored(app).symbols.map(s => s.x), [2, 0]);
 });
 
 test('Ctrl+drag on a symbol leaves the original and drags a copy; undo removes the copy', () => {
@@ -307,4 +327,89 @@ test('dragging a room corner snaps to other walls', () => {
   canvas.fire('pointerdown', { clientX: 330, clientY: 275, target: c2 });
   canvas.fire('pointermove', { clientX: 434, clientY: 290 }); canvas.fire('pointerup');
   assert.equal(stored(app).walls[0].b.x, 6);
+});
+
+test('a room can be named; the name is saved, shown in the middle of the room, and kept by Ctrl+drag copies', () => {
+  const app = loadApp(), canvas = app.get('canvas'), room = drawRoom(app);
+  app.get('room-name').value = '  Kitchen ';
+  app.get('room-properties').onsubmit({ preventDefault() {} });
+  assert.deepEqual(stored(app).rooms, { [room.walls[0].room]: 'Kitchen' });
+  const label = app.get('labels').children.find(t => t.textContent === 'Kitchen');
+  assert.deepEqual([+label.attrs.x, +label.attrs.y], [2, 1.5]);
+  canvas.fire('pointerdown', { ctrlKey: true, target: { dataset: { wall: room.walls[0].id } } });
+  canvas.fire('pointermove', { clientX: 440, clientY: 110, ctrlKey: true }); canvas.fire('pointerup', { ctrlKey: true });
+  assert.deepEqual(Object.values(stored(app).rooms), ['Kitchen', 'Kitchen']);
+  app.get('room-name').value = '';
+  app.get('room-properties').onsubmit({ preventDefault() {} });
+  assert.equal(Object.keys(stored(app).rooms).length, 1);
+});
+
+test('a selected symbol can be resized from the inspector; copies keep the size', () => {
+  const app = loadApp(), canvas = app.get('canvas');
+  pick(app, 'sliding-door'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  assert.equal(app.get('symbol-width').value, '1.80');
+  app.get('symbol-width').value = '1'; app.get('symbol-depth').value = '0.2';
+  app.get('symbol-properties').onsubmit({ preventDefault() {} });
+  const sym = stored(app).symbols[0];
+  assert.deepEqual([sym.type, sym.w, sym.h], ['sliding-door', 1, .2]);
+  app.get('symbol-width').value = '0';
+  app.get('symbol-properties').onsubmit({ preventDefault() {} });
+  assert.equal(stored(app).symbols[0].w, 1);
+  assert.equal(app.get('message').hidden, false);
+  app.tool('select');
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, ctrlKey: true, target: { dataset: { symbol: sym.id } } });
+  canvas.fire('pointermove', { clientX: 330, clientY: 200, ctrlKey: true }); canvas.fire('pointerup', { ctrlKey: true });
+  assert.deepEqual(stored(app).symbols.map(s => [s.w, s.h]), [[1, .2], [1, .2]]);
+});
+
+test('every catalog symbol, including stairs up and down, can be placed and is drawn', () => {
+  for (const type of ['stairs-up', 'stairs-down', ...Object.keys(model.SYMBOLS)]) {
+    const app = loadApp(), canvas = app.get('canvas');
+    pick(app, type); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+    assert.equal(stored(app).symbols[0].type, type);
+    assert.ok(app.get('symbols').children[0].children.length > 1, type + ' is drawn');
+  }
+  const label = type => { const app = loadApp(), canvas = app.get('canvas'); pick(app, type); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); return app.get('symbols').children[0].children.find(n => n.textContent).textContent; };
+  assert.deepEqual([label('stairs-up'), label('stairs-down')], ['UP', 'DN']);
+});
+
+test('a selected symbol can be rotated and resized with the mouse using its handles', () => {
+  const app = loadApp(), canvas = app.get('canvas'); pick(app, 'toilet');
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup'); app.tool('select');
+  const handle = name => app.get('handles').children.flatMap(g => [g, ...g.children]).find(h => h.dataset.symbolHandle === name);
+  canvas.fire('pointerdown', { clientX: 220, clientY: 160, target: handle('rotate') });
+  canvas.fire('pointermove', { clientX: 275, clientY: 203 }); canvas.fire('pointerup');
+  assert.equal(stored(app).symbols[0].rotation, 90);
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, target: handle('w') });
+  canvas.fire('pointermove', { clientX: 220, clientY: 227.5 }); canvas.fire('pointerup');
+  assert.deepEqual(model.symbolSize(stored(app).symbols[0]), { w: 1.4, h: .7 });
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, target: handle('wh') });
+  canvas.fire('pointermove', { clientX: 209, clientY: 200 }); canvas.fire('pointerup');
+  assert.deepEqual(model.symbolSize(stored(app).symbols[0]), { w: 1.4, h: 1.1 });
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, target: handle('h') });
+  canvas.fire('pointermove', { clientX: 400, clientY: 200 }); canvas.fire('pointerup');
+  assert.deepEqual(model.symbolSize(stored(app).symbols[0]), { w: 1.4, h: .1 });
+  assert.equal(stored(app).symbols.length, 1);
+  app.key('keydown', { key: 'z', ctrlKey: true });
+  assert.deepEqual(model.symbolSize(stored(app).symbols[0]), { w: 1.4, h: 1.1 });
+});
+
+test('the whole plan exports as a standalone SVG drawing without grid, selection or editing handles', () => {
+  const app = loadApp(), canvas = app.get('canvas');
+  app.get('export-svg').onclick();
+  assert.equal(app.downloads.length, 0);
+  assert.equal(app.get('message').hidden, false);
+  drawRoom(app);
+  app.get('room-name').value = 'Kitchen'; app.get('room-properties').onsubmit({ preventDefault() {} });
+  pick(app, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  app.get('export-svg').onclick();
+  const { type, text } = app.downloads[0];
+  assert.equal(type, 'image/svg+xml');
+  assert.match(text, /^<svg viewBox="-1 -1 6 5" width="330" height="275">/);
+  assert.equal(text.match(/stroke-width="0.15"/g).length, 4);
+  assert.match(text, />Kitchen</);
+  assert.match(text, />4.00 m</);
+  assert.match(text, /<ellipse/);
+  assert.doesNotMatch(text, /transparent|cursor|data-|grid/);
+  assert.equal(stored(app).symbols.length, 1);
 });

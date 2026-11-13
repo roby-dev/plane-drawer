@@ -73,8 +73,11 @@ test('measuring starts at a corner, or at the nearest corner of the hovered wall
 });
 
 test('symbols: catalog, validation and plans saved without symbols', () => {
-  for (const type of ['door', 'window', 'toilet', 'sink', 'shower', 'kitchen-sink', 'laundry-sink', 'washer', 'water-cold', 'water-hot', 'drain'])
+  for (const type of ['door', 'window', 'toilet', 'sink', 'shower', 'kitchen-sink', 'laundry-sink', 'washer', 'water-cold', 'water-hot', 'drain', 'garage-door', 'car'])
     assert.ok(model.SYMBOLS[type].w > 0 && model.SYMBOLS[type].h > 0 && model.SYMBOLS[type].label, type);
+  assert.deepEqual([model.SYMBOLS.car.w, model.SYMBOLS.car.h], [1.66, 3.765]);
+  assert.ok(model.SYMBOLS.door.w <= 0.7, 'doors are at most 70 cm');
+  assert.ok(model.SYMBOLS['garage-door'].wall && model.SYMBOLS['garage-door'].w > 2);
   const base = { version: 1, name: 'x', walls: [] };
   assert.deepEqual(model.decode(JSON.stringify(base)).symbols, []);
   const bad = symbols => () => model.decode(JSON.stringify({ ...base, symbols }));

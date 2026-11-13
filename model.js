@@ -12,7 +12,7 @@
   }
   // Size in meters (w along the wall, h across it). `wall` symbols snap onto walls.
   const SYMBOLS = {
-    door: { label: 'Door', w: .9, h: .9, wall: true },
+    door: { label: 'Door', w: .7, h: .7, wall: true },
     window: { label: 'Window', w: 1.2, h: .25, wall: true },
     toilet: { label: 'Toilet', w: .4, h: .7 },
     sink: { label: 'Sink', w: .5, h: .4 },
@@ -22,7 +22,9 @@
     washer: { label: 'Washing machine', w: .6, h: .6 },
     'water-cold': { label: 'Cold water', w: .24, h: .24 },
     'water-hot': { label: 'Hot water', w: .24, h: .24 },
-    drain: { label: 'Drain', w: .24, h: .24 }
+    drain: { label: 'Drain', w: .24, h: .24 },
+    'garage-door': { label: 'Garage door', w: 2.4, h: .5, wall: true },
+    car: { label: 'Car', w: 1.66, h: 3.765 }
   };
   const symbol = (type, x, y, rotation = 0) => ({ id: globalThis.crypto.randomUUID(), type, x: round(x), y: round(y), rotation });
   // Closest point on a wall plus the wall's angle; the symbol faces the side of the wall the cursor is on.
@@ -57,6 +59,16 @@
       g.from = Math.min(...spans); g.to = Math.max(...spans);
     }
     return out;
+  }
+  // Copies of walls with fresh ids; a copied room gets its own room id.
+  function duplicateWalls(walls) {
+    const rooms = new Map();
+    return walls.map(w => {
+      const copy = { ...structuredClone(w), id: globalThis.crypto.randomUUID() };
+      if (walls.length === 1) delete copy.room;
+      else if (w.room) { if (!rooms.has(w.room)) rooms.set(w.room, globalThis.crypto.randomUUID()); copy.room = rooms.get(w.room); }
+      return copy;
+    });
   }
   function roomBounds(walls) {
     const xs = walls.flatMap(w => [w.a.x, w.b.x]), ys = walls.flatMap(w => [w.a.y, w.b.y]);
@@ -162,7 +174,7 @@
     decode(text);
     return text;
   }
-  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, roomBounds, resizeRoom, SYMBOLS, symbol, snapToWall };
+  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, resizeRoom, SYMBOLS, symbol, snapToWall };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PlanModel = api;
 })(globalThis);

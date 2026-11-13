@@ -63,10 +63,10 @@ const PAPER = '#fbfdff';
 // Plan symbols, drawn in meters around their center. Local +y points into the room (away from the wall).
 const SHAPES = {
   door: add => {
-    add('rect', { x: -.45, y: -.125, width: .9, height: .25, fill: PAPER, stroke: 'none' });
-    add('line', { x1: -.45, y1: -.125, x2: -.45, y2: .125 }); add('line', { x1: .45, y1: -.125, x2: .45, y2: .125 });
-    add('line', { x1: -.45, y1: 0, x2: -.45, y2: .9, 'stroke-width': .04 });
-    add('path', { d: 'M .45 0 A .9 .9 0 0 1 -.45 .9', fill: 'none', 'stroke-dasharray': '.05 .04' });
+    add('rect', { x: -.35, y: -.125, width: .7, height: .25, fill: PAPER, stroke: 'none' });
+    add('line', { x1: -.35, y1: -.125, x2: -.35, y2: .125 }); add('line', { x1: .35, y1: -.125, x2: .35, y2: .125 });
+    add('line', { x1: -.35, y1: 0, x2: -.35, y2: .7, 'stroke-width': .04 });
+    add('path', { d: 'M .35 0 A .7 .7 0 0 1 -.35 .7', fill: 'none', 'stroke-dasharray': '.05 .04' });
   },
   window: add => {
     add('rect', { x: -.6, y: -.125, width: 1.2, height: .25, fill: PAPER, stroke: 'none' });
@@ -93,6 +93,20 @@ const SHAPES = {
   washer: add => {
     add('rect', { x: -.3, y: -.3, width: .6, height: .6, rx: .03 });
     add('circle', { cx: 0, cy: .03, r: .2 }); add('circle', { cx: 0, cy: .03, r: .12 }); add('circle', { cx: -.2, cy: -.22, r: .02 });
+  },
+  'garage-door': add => {
+    add('rect', { x: -1.2, y: -.125, width: 2.4, height: .25, fill: PAPER, stroke: 'none' });
+    add('line', { x1: -1.2, y1: -.125, x2: -1.2, y2: .125 }); add('line', { x1: 1.2, y1: -.125, x2: 1.2, y2: .125 });
+    add('rect', { x: -1.2, y: -.05, width: 2.4, height: .1 });
+    [-.6, 0, .6].forEach(x => add('line', { x1: x, y1: -.05, x2: x, y2: .05, stroke: '#9bb0c4' }));
+    add('rect', { x: -1.2, y: .05, width: 2.4, height: .4, fill: 'none', 'stroke-dasharray': '.08 .06', stroke: '#9bb0c4' });
+  },
+  car: add => {
+    add('rect', { x: -.83, y: -1.8825, width: 1.66, height: 3.765, rx: .4 });
+    add('path', { d: 'M -.6 -.9 L -.5 -1.38 H .5 L .6 -.9 Z', fill: '#e3edf6' });
+    add('path', { d: 'M -.6 1 L -.5 1.38 H .5 L .6 1 Z', fill: '#e3edf6' });
+    add('rect', { x: -.58, y: -.75, width: 1.16, height: 1.6, rx: .12, fill: 'none', stroke: '#9bb0c4' });
+    [[-.83, -1.35], [.75, -1.35], [-.83, .95], [.75, .95]].forEach(([x, y]) => add('rect', { x, y, width: .08, height: .4, rx: .02, fill: '#344c63' }));
   },
   'water-cold': add => { add('circle', { cx: 0, cy: 0, r: .12, fill: '#2f80ed' }); add('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': .15, fill: '#fff', stroke: 'none', 'font-family': 'Segoe UI, sans-serif' }, 'C'); },
   'water-hot': add => { add('circle', { cx: 0, cy: 0, r: .12, fill: '#e5484d' }); add('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': .15, fill: '#fff', stroke: 'none', 'font-family': 'Segoe UI, sans-serif' }, 'H'); },
@@ -195,13 +209,22 @@ function placeSymbol(e) {
   const before = snapshot(), at = placement(e, symbolType), sym = M.symbol(symbolType, at.x, at.y, at.rotation);
   plan.symbols.push(sym); selectedSymbol = sym.id; selected = null; single = false; guides = []; commit(before);
 }
+// Ctrl+drag: duplicate the selection in place; the copy is what gets dragged. Returns the selection to restore if nothing moves.
+function duplicateSelection() {
+  const restore = { selected, selectedSymbol, single };
+  const sym = plan.symbols.find(x => x.id === selectedSymbol);
+  if (sym) { const copy = M.symbol(sym.type, sym.x, sym.y, sym.rotation); plan.symbols.push(copy); selectedSymbol = copy.id; return restore; }
+  const copies = M.duplicateWalls(selectedWalls());
+  if (!copies.length) return null;
+  plan.walls.push(...copies); selected = copies[0].id; return restore;
+}
 function rotateSelected() {
   const sym = plan.symbols.find(x => x.id === selectedSymbol); if (!sym) return;
   const before = snapshot(); sym.rotation = (sym.rotation + 90) % 360; if (sym.rotation > 180) sym.rotation -= 360;
   commit(before);
 }
-function drawingPoint(e) {
-  reference = M.findReference(point(e, false), plan.walls, 12 / camera.scale);
+function drawingPoint(e, walls = plan.walls) {
+  reference = M.findReference(point(e, false), walls, 12 / camera.scale);
   return reference ? reference.point : point(e);
 }
 function cornersOf(walls) {
@@ -218,7 +241,7 @@ function setTool(next) {
   cancelGesture(); tool = next; ghost = null; guides = [];
   palette.forEach(b => b.classList.toggle('active', tool === 'symbol' && b.dataset.symbol === symbolType));
   document.querySelectorAll('[data-tool]').forEach(b => { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', b.dataset.tool === tool); });
-  $('hint').textContent = { select: 'Drag a room to move it, its corners to resize. Alt+click picks a single wall. Hold Ctrl over a corner and slide along a wall to measure.', rectangle: 'Drag to draw a room. Orange marks snap to existing walls.', wall: 'Drag to draw. Orange marks snap to walls; Shift aligns free lines.', pan: 'Drag to pan. Hold the middle mouse button from any tool.', symbol: 'Click to place. Doors and windows snap onto walls (click on the side they should open). Purple lines show alignment with other symbols and corners. Q rotates, Esc finishes.' }[tool];
+  $('hint').textContent = { select: 'Drag a room to move it, its corners to resize. Ctrl+drag copies. Alt+click picks a single wall. Hold Ctrl over a corner and slide along a wall to measure.', rectangle: 'Drag to draw a room. Orange marks snap to existing walls.', wall: 'Drag to draw. Orange marks snap to walls; Shift aligns free lines.', pan: 'Drag to pan. Hold the middle mouse button from any tool.', symbol: 'Click to place. Doors and windows snap onto walls (click on the side they should open). Purple lines show alignment with other symbols and corners. Q rotates, Esc finishes.' }[tool];
   svg.style.cursor = tool === 'select' ? 'default' : tool === 'pan' ? 'grab' : 'crosshair';
   render();
 }
@@ -235,22 +258,46 @@ svg.addEventListener('pointerdown', e => {
     const end = e.target.dataset.end, corner = e.target.dataset.corner, id = e.target.dataset.wall, symbolId = e.target.dataset.symbol;
     if (symbolId) { selectedSymbol = symbolId; selected = null; single = false; }
     else if (!end && corner === undefined) { selected = id || null; single = !!id && !!e.altKey; selectedSymbol = null; }
+    const before = snapshot(), copy = e.ctrlKey && end === undefined && corner === undefined && (symbolId || id) ? duplicateSelection() : null;
     const group = selectedWalls(), originals = structuredClone(group), movingSymbol = plan.symbols.find(x => x.id === selectedSymbol);
-    if (movingSymbol) gesture = { kind: 'symbol', start, original: { ...movingSymbol }, before: snapshot() };
-    else if (corner !== undefined) gesture = { kind: 'corner', corner: +corner, start, originals, points: cornersOf(originals), before: snapshot() };
-    else if (end) gesture = { kind: 'endpoint', start, end, original: originals[0], before: snapshot() };
-    else if (group.length) gesture = { kind: 'move', start, originals, before: snapshot() };
+    if (movingSymbol) gesture = { kind: 'symbol', start, original: { ...movingSymbol }, before, copy };
+    else if (corner !== undefined) gesture = { kind: 'corner', corner: +corner, start, originals, points: cornersOf(originals), before };
+    else if (end) gesture = { kind: 'endpoint', start, end, original: originals[0], before };
+    else if (group.length) gesture = { kind: 'move', start, originals, before, copy };
     properties();
   }
   render();
 });
-function wallEnd(e, g) {
-  if (!(e.shiftKey && g.kind === 'wall')) return drawingPoint(e);
+// Horizontal/vertical line from `from`, ending at an endpoint or crossing found on that line.
+function straightEnd(e, from, walls) {
   const raw = point(e, false), snapped = point(e);
-  const horizontal = Math.abs(raw.x - g.start.x) >= Math.abs(raw.y - g.start.y);
-  const locked = horizontal ? { x: snapped.x, y: g.start.y } : { x: g.start.x, y: snapped.y };
-  reference = M.findLineReference(g.start, locked, plan.walls, 12 / camera.scale);
+  const horizontal = Math.abs(raw.x - from.x) >= Math.abs(raw.y - from.y);
+  const locked = horizontal ? { x: snapped.x, y: from.y } : { x: from.x, y: snapped.y };
+  reference = M.findLineReference(from, locked, walls, 12 / camera.scale);
   return reference ? reference.point : locked;
+}
+function wallEnd(e, g) {
+  return e.shiftKey && g.kind === 'wall' ? straightEnd(e, g.start, plan.walls) : drawingPoint(e);
+}
+// While editing, references come from every wall except the ones being edited.
+function editPoint(e, g) {
+  const skip = new Set(g.kind === 'endpoint' ? [selected] : g.originals.map(w => w.id));
+  const others = plan.walls.filter(w => !skip.has(w.id));
+  if (g.kind === 'endpoint' && e.shiftKey) return straightEnd(e, g.original[g.end === 'a' ? 'b' : 'a'], others);
+  return drawingPoint(e, others);
+}
+// Nudge a move so the closest moved endpoint lands on a reference of a wall that is not moving.
+function snapMove(delta, originals) {
+  const skip = new Set(originals.map(w => w.id)), others = plan.walls.filter(w => !skip.has(w.id));
+  let best = null;
+  for (const w of originals) for (const end of [w.a, w.b]) {
+    const at = { x: end.x + delta.x, y: end.y + delta.y }, ref = M.findReference(at, others, 12 / camera.scale);
+    if (!ref) continue;
+    const shift = { x: ref.point.x - at.x, y: ref.point.y - at.y }, d = Math.hypot(shift.x, shift.y);
+    if (!best || d < best.d) best = { d, ref, shift };
+  }
+  reference = best ? best.ref : null;
+  return best ? { x: delta.x + best.shift.x, y: delta.y + best.shift.y } : delta;
 }
 let lastPointer = null;
 function updateGesture(e) {
@@ -264,17 +311,19 @@ function updateGesture(e) {
     if (drawing || tool === 'symbol' || measure || hadMeasure) render();
     return;
   }
-  const g = gesture, p = g.kind === 'wall' || g.kind === 'rectangle' ? wallEnd(e, g) : point(e);
+  const g = gesture, p = g.kind === 'wall' || g.kind === 'rectangle' ? wallEnd(e, g) : g.kind === 'endpoint' || g.kind === 'corner' ? editPoint(e, g) : point(e);
   if (g.kind === 'pan') {
     camera.x = g.camera.x - (e.clientX - g.clientX) / camera.scale;
     camera.y = g.camera.y - (e.clientY - g.clientY) / camera.scale;
   } else if (g.kind === 'move') {
-    const delta = { x: p.x - g.start.x, y: p.y - g.start.y };
+    const delta = snapMove({ x: p.x - g.start.x, y: p.y - g.start.y }, g.originals);
+    if (delta.x || delta.y) g.moved = true;
     g.originals.forEach(o => { plan.walls[plan.walls.findIndex(w => w.id === o.id)] = M.move(o, delta); });
   } else if (g.kind === 'symbol') {
     const o = g.original, i = plan.symbols.findIndex(x => x.id === o.id);
     const at = M.SYMBOLS[o.type].wall ? placement(e, o.type, o.rotation, o.id)
       : align({ x: M.round(o.x + p.x - g.start.x), y: M.round(o.y + p.y - g.start.y), rotation: o.rotation }, { x: true, y: true }, o.id);
+    if (at.x !== o.x || at.y !== o.y) g.moved = true;
     plan.symbols[i] = { ...o, x: at.x, y: at.y, rotation: at.rotation }; guides = at.guides;
   } else if (g.kind === 'corner') {
     const opposite = g.points[(g.corner + 2) % 4];
@@ -300,6 +349,7 @@ svg.addEventListener('pointerup', e => {
     plan.walls.push(...g.preview); selected = g.preview[0].id; single = false; selectedSymbol = null;
   }
   if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+  if (g.copy && !g.moved) { plan = JSON.parse(g.before); ({ selected, selectedSymbol, single } = g.copy); g.before = null; }
   if (g.before) commit(g.before);
   if (g.preview?.length) setTool('select');
   render(); properties();

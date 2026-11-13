@@ -225,3 +225,83 @@ test('fixtures align with other symbols and corners while dragging', () => {
   canvas.fire('pointermove', { clientX: 108, clientY: 240 }); canvas.fire('pointerup');
   assert.equal(stored(app).symbols[1].x, 0);
 });
+
+test('Ctrl+drag on a symbol leaves the original and drags a copy; undo removes the copy', () => {
+  const app = loadApp(), canvas = app.get('canvas'); pick(app, 'toilet');
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup'); app.tool('select');
+  const id = stored(app).symbols[0].id;
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, ctrlKey: true, target: { dataset: { symbol: id } } });
+  canvas.fire('pointermove', { clientX: 330, clientY: 200, ctrlKey: true }); canvas.fire('pointerup', { ctrlKey: true });
+  const { symbols } = stored(app);
+  assert.deepEqual(symbols.map(s => [s.type, s.x]), [['toilet', 2], ['toilet', 4]]);
+  assert.notEqual(symbols[0].id, symbols[1].id);
+  app.key('keydown', { key: 'z', ctrlKey: true });
+  assert.equal(stored(app).symbols.length, 1);
+});
+
+test('Ctrl+drag on a rectangle copies the whole room as a new, independent room', () => {
+  const app = loadApp(), canvas = app.get('canvas'), room = drawRoom(app);
+  canvas.fire('pointerdown', { ctrlKey: true, target: { dataset: { wall: room.walls[0].id } } });
+  canvas.fire('pointermove', { clientX: 440, clientY: 110, ctrlKey: true }); canvas.fire('pointerup', { ctrlKey: true });
+  const { walls } = stored(app);
+  assert.equal(walls.length, 8);
+  assert.deepEqual(walls.slice(0, 4), room.walls);
+  assert.deepEqual(walls.slice(4).map(w => w.a.x), [6, 10, 10, 6]);
+  assert.equal(new Set(walls.map(w => w.room)).size, 2);
+  assert.equal(new Set(walls.map(w => w.id)).size, 8);
+});
+
+test('Ctrl+click without dragging does not leave a duplicate behind', () => {
+  const app = loadApp(), canvas = app.get('canvas'), room = drawRoom(app);
+  canvas.fire('pointerdown', { ctrlKey: true, target: { dataset: { wall: room.walls[0].id } } });
+  canvas.fire('pointerup', { ctrlKey: true });
+  assert.equal(stored(app).walls.length, 4);
+});
+
+function roomAndLooseWall(app) {
+  const canvas = app.get('canvas'); drawRoom(app); app.tool('wall');
+  canvas.fire('pointerdown', { clientX: 110, clientY: 192.5 });
+  canvas.fire('pointermove', { clientX: 220, clientY: 192.5 }); canvas.fire('pointerup');
+  return canvas;
+}
+const handle = (app, end) => app.get('handles').children.find(c => c.dataset.end === end);
+
+test('dragging a wall endpoint snaps to other walls and shows the reference marker', () => {
+  const app = loadApp(), canvas = roomAndLooseWall(app);
+  canvas.fire('pointerdown', { clientX: 220, clientY: 192.5, target: handle(app, 'b') });
+  canvas.fire('pointermove', { clientX: 328, clientY: 196 });
+  assert.ok(app.get('preview').children.some(c => c.attrs['data-reference']));
+  canvas.fire('pointerup');
+  assert.equal(stored(app).walls[4].b.x, 4);
+  assert.deepEqual(stored(app).walls[4].a, { x: 0, y: 1.5 });
+});
+
+test('Shift while dragging an endpoint keeps the wall straight and marks where it crosses another wall', () => {
+  const app = loadApp(), canvas = roomAndLooseWall(app);
+  canvas.fire('pointerdown', { clientX: 220, clientY: 192.5, target: handle(app, 'b') });
+  canvas.fire('pointermove', { clientX: 328, clientY: 200, shiftKey: true });
+  assert.ok(app.get('preview').children.some(c => c.attrs['data-reference']));
+  canvas.fire('pointerup');
+  assert.deepEqual(stored(app).walls[4].b, { x: 4, y: 1.5 });
+});
+
+test('moving a wall snaps its end onto another wall', () => {
+  const app = loadApp(), canvas = roomAndLooseWall(app), id = stored(app).walls[4].id;
+  canvas.fire('pointerdown', { clientX: 165, clientY: 192.5, target: { dataset: { wall: id } } });
+  canvas.fire('pointermove', { clientX: 268, clientY: 192.5 });
+  assert.ok(app.get('preview').children.some(c => c.attrs['data-reference']));
+  canvas.fire('pointerup');
+  const wall = stored(app).walls[4];
+  assert.deepEqual([wall.a.x, wall.b.x], [2, 4]);
+});
+
+test('dragging a room corner snaps to other walls', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  app.tool('wall'); canvas.fire('pointerdown', { clientX: 440, clientY: 110 }); canvas.fire('pointermove', { clientX: 440, clientY: 330 }); canvas.fire('pointerup');
+  app.tool('select');
+  canvas.fire('pointerdown', { clientX: 330, clientY: 275, target: { dataset: { wall: stored(app).walls[0].id } } }); canvas.fire('pointerup');
+  const c2 = app.get('handles').children.find(c => String(c.dataset.corner) === '2');
+  canvas.fire('pointerdown', { clientX: 330, clientY: 275, target: c2 });
+  canvas.fire('pointermove', { clientX: 434, clientY: 290 }); canvas.fire('pointerup');
+  assert.equal(stored(app).walls[0].b.x, 6);
+});

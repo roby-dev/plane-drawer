@@ -128,3 +128,22 @@ test('sliding glass door, symbol sizes and room names round-trip through a saved
   assert.throws(bad({ rooms: [] }));
   assert.throws(bad({ symbols: [{ id: 'a', type: 'door', x: 0, y: 0, rotation: 0, w: -1 }] }));
 });
+
+test('free text items: default content, editing, size and round-trip', () => {
+  assert.equal(model.SYMBOLS.text.label, 'Text');
+  const item = model.symbol('text', 1, 2);
+  assert.equal(item.text, 'Text');
+  const edited = model.editText(item, '  Living room ', .5);
+  assert.deepEqual([edited.text, edited.h], ['Living room', .5]);
+  assert.ok(model.symbolSize(edited).w > model.symbolSize(model.editText(item, 'Hi', .5)).w);
+  assert.equal(model.symbolSize(edited).h, .5);
+  assert.throws(() => model.editText(item, '   ', .5));
+  assert.throws(() => model.editText(item, 'x'.repeat(61), .5));
+  assert.throws(() => model.editText(item, 'ok', 3));
+  const plan = { name: 'x', walls: [], symbols: [edited], rooms: {} };
+  assert.deepEqual(model.decode(model.encode(plan)).symbols[0], edited);
+  const bad = text => () => model.decode(JSON.stringify({ version: 1, name: 'x', walls: [], symbols: [{ ...edited, text }] }));
+  assert.throws(bad('x'.repeat(61)));
+  assert.throws(bad(''));
+  assert.throws(bad(42));
+});

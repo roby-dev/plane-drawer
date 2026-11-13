@@ -51,14 +51,20 @@ $('room-properties').onsubmit = e => {
   if (name) state.plan.rooms[group[0].room] = name; else delete state.plan.rooms[group[0].room];
   commit(before);
 };
-$('symbol-properties').onsubmit = e => {
-  e.preventDefault();
+function applySymbolForm() {
   const sym = selectedSymbol(); if (!sym) return;
   const before = snapshot();
-  try {
-    replaceSymbol(M.resizeSymbol(sym, +$('symbol-width').value, +$('symbol-depth').value)); commit(before);
-  } catch { notify('Enter a width and depth between 0.10 and 20 meters.'); }
-};
+  if (M.SYMBOLS[sym.type].text) {
+    try { replaceSymbol(M.editText(sym, $('symbol-text').value, +$('symbol-font').value)); commit(before); }
+    catch { notify('Enter between 1 and ' + M.TEXT_MAX + ' characters, and a size between 0.10 and 2 meters.'); }
+    return;
+  }
+  try { replaceSymbol(M.resizeSymbol(sym, +$('symbol-width').value, +$('symbol-depth').value)); commit(before); }
+  catch { notify('Enter a width and depth between 0.10 and 20 meters.'); }
+}
+$('symbol-properties').onsubmit = e => { e.preventDefault(); applySymbolForm(); };
+// Leaving the text field applies it, so typing then clicking the canvas keeps the words.
+$('symbol-text').onchange = applySymbolForm;
 
 // Plan and files
 $('plan-name').onchange = () => { const before = snapshot(); state.plan.name = $('plan-name').value.trim() || 'Untitled plan'; $('plan-name').value = state.plan.name; commit(before); };

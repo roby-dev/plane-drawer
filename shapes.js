@@ -16,6 +16,8 @@ function stairs(add, up) {
   add('text', { ...SYMBOL_LABEL, x: .3, y: from, 'font-size': .18, fill: '#344c63' }, up ? 'UP' : 'DN');
 }
 const SYMBOL_SHAPES = {
+  // Drawn at its real size (never scaled), so the letters keep their shape.
+  text: (add, sym) => add('text', { ...SYMBOL_LABEL, 'font-size': M.symbolSize(sym).h, fill: '#253b51' }, sym.text || 'Text'),
   'stairs-up': add => stairs(add, true),
   'stairs-down': add => stairs(add, false),
   door: add => {

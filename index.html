@@ -66,12 +66,16 @@
       <p class="form-note">Dimensions follow the wall centerline. Moving one wall does not move its neighbors.</p>
     </form>
     <form id="symbol-properties" class="form" hidden>
-      <div class="field-row">
-        <label class="field">Width <span class="field-unit">m</span><input id="symbol-width" type="number" min=".1" max="20" step=".01" required></label>
-        <label class="field">Depth <span class="field-unit">m</span><input id="symbol-depth" type="number" min=".1" max="20" step=".01" required></label>
+      <div id="symbol-text-fields" class="field-stack" hidden>
+        <label class="field">Text<input id="symbol-text" type="text" maxlength="60"></label>
+        <label class="field">Letter height <span class="field-unit">m</span><input id="symbol-font" type="number" min=".1" max="2" step=".05"></label>
+      </div>
+      <div id="symbol-size-fields" class="field-row">
+        <label class="field">Width <span class="field-unit">m</span><input id="symbol-width" type="number" min=".1" max="20" step=".01"></label>
+        <label class="field">Depth <span class="field-unit">m</span><input id="symbol-depth" type="number" min=".1" max="20" step=".01"></label>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary btn-block">Apply size</button>
+        <button type="submit" class="btn btn-primary btn-block">Apply</button>
         <div class="btn-pair">
           <button id="symbol-rotate" type="button" class="btn">↻ Rotate <kbd>Q</kbd></button>
           <button id="symbol-delete" type="button" class="btn btn-danger">Delete</button>

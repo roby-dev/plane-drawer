@@ -57,9 +57,9 @@ function symbolBox(sym) {
 function drawSymbol(sym, parent, { preview = false, interactive = !preview } = {}) {
   const def = M.SYMBOLS[sym.type], size = M.symbolSize(sym);
   const g = el('g', { transform: symbolTransform(sym), opacity: preview ? .6 : 1 }, parent);
-  // Shapes are drawn at the catalog size; a resized symbol scales them.
-  const shape = size.w === def.w && size.h === def.h ? g : el('g', { transform: 'scale(' + size.w / def.w + ' ' + size.h / def.h + ')' }, g);
-  SYMBOL_SHAPES[sym.type]((tag, attrs, text) => el(tag, { ...SYMBOL_INK, ...attrs }, shape, text));
+  // Shapes are drawn at the catalog size; a resized symbol scales them. Text draws itself at its own size.
+  const shape = def.text || (size.w === def.w && size.h === def.h) ? g : el('g', { transform: 'scale(' + size.w / def.w + ' ' + size.h / def.h + ')' }, g);
+  SYMBOL_SHAPES[sym.type]((tag, attrs, text) => el(tag, { ...SYMBOL_INK, ...attrs }, shape, text), sym);
   if (!interactive) return;
   const box = symbolBox(sym);
   if (sym.id === state.selectedSymbolId) el('rect', { ...box, fill: 'none', stroke: COLORS.accent, 'stroke-width': px(2), 'stroke-dasharray': dashes(5, 3), 'pointer-events': 'none' }, g);
@@ -72,6 +72,8 @@ function drawSymbolHandles(sym) {
   el('line', { x1: 0, y1: box.y, x2: 0, y2: knob, stroke: COLORS.accentDark, 'stroke-width': px(1.5), 'pointer-events': 'none' }, g);
   const handle = (name, x, y, cursor) => { el('circle', { cx: x, cy: y, r: px(6), fill: 'white', stroke: COLORS.accentDark, 'stroke-width': px(2), cursor }, g).dataset.symbolHandle = name; };
   handle('rotate', 0, knob, 'grab');
+  // Text only changes its letter height; its width follows the words.
+  if (M.SYMBOLS[sym.type].text) { handle('h', 0, bottom, 'ns-resize'); return; }
   handle('w', right, 0, 'ew-resize'); handle('h', 0, bottom, 'ns-resize'); handle('wh', right, bottom, 'nwse-resize');
 }
 // Corner handles for a selected room, endpoint handles for a single wall.
@@ -179,8 +181,10 @@ function renderInspector() {
     $('thickness').value = w.thickness;
   }
   if (sym) {
-    const size = M.symbolSize(sym);
-    $('symbol-width').value = size.w.toFixed(2); $('symbol-depth').value = size.h.toFixed(2);
+    const size = M.symbolSize(sym), isText = !!M.SYMBOLS[sym.type].text;
+    $('symbol-text-fields').hidden = !isText; $('symbol-size-fields').hidden = isText;
+    if (isText) { $('symbol-text').value = sym.text; $('symbol-font').value = size.h.toFixed(2); }
+    else { $('symbol-width').value = size.w.toFixed(2); $('symbol-depth').value = size.h.toFixed(2); }
   }
 }
 

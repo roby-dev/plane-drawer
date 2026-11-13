@@ -27,12 +27,25 @@
     'sliding-door': { label: 'Sliding glass door', w: 1.8, h: .25, wall: true },
     'stairs-up': { label: 'Stairs up', w: 1, h: 3 },
     'stairs-down': { label: 'Stairs down', w: 1, h: 3 },
-    car: { label: 'Car', w: 1.66, h: 3.765 }
+    car: { label: 'Car', w: 1.66, h: 3.765 },
+    // Free text: `h` is the letter height; the width follows the text.
+    text: { label: 'Text', w: 1, h: .3, text: true }
   };
-  const symbol = (type, x, y, rotation = 0) => ({ id: globalThis.crypto.randomUUID(), type, x: round(x), y: round(y), rotation });
+  const TEXT_MAX = 60;
+  const validText = t => typeof t === 'string' && t.length > 0 && t.length <= TEXT_MAX;
+  const symbol = (type, x, y, rotation = 0) => ({ id: globalThis.crypto.randomUUID(), type, x: round(x), y: round(y), rotation, ...(SYMBOLS[type].text ? { text: 'Text' } : {}) });
   const copySymbol = s => ({ ...s, id: globalThis.crypto.randomUUID() });
-  // A symbol's size in meters: its own `w`/`h` when resized, otherwise the catalog default.
-  const symbolSize = s => ({ w: s.w ?? SYMBOLS[s.type].w, h: s.h ?? SYMBOLS[s.type].h });
+  // A symbol's size in meters: its own `w`/`h` when resized, otherwise the catalog default. Text width is estimated from its length.
+  function symbolSize(s) {
+    const def = SYMBOLS[s.type], h = s.h ?? def.h;
+    if (def.text) return { w: round(Math.max(.3, (s.text || 'Text').length * h * .6)), h };
+    return { w: s.w ?? def.w, h };
+  }
+  function editText(s, text, size) {
+    const value = String(text).trim();
+    if (!validText(value) || !Number.isFinite(size) || size < .1 || size > 2) throw new Error('Invalid text');
+    return { ...s, text: value, h: round(size) };
+  }
   const validSymbolSize = n => Number.isFinite(n) && n >= .1 && n <= 20;
   function resizeSymbol(s, w, h) {
     if (!validSymbolSize(w) || !validSymbolSize(h)) throw new Error('Invalid size');
@@ -183,13 +196,14 @@
     for (const s of symbols) {
       if (!s || typeof s.id !== 'string' || symbolIds.has(s.id) || !SYMBOLS[s.type] || !point(s) || !Number.isFinite(s.rotation)) throw new Error('Invalid symbol');
       if ((s.w !== undefined && !validSymbolSize(s.w)) || (s.h !== undefined && !validSymbolSize(s.h))) throw new Error('Invalid symbol');
+      if (s.text !== undefined && !validText(s.text)) throw new Error('Invalid symbol');
       symbolIds.add(s.id);
     }
     // Room names, keyed by the `room` id their walls share.
     const rooms = data.rooms === undefined ? {} : data.rooms;
     if (!rooms || typeof rooms !== 'object' || Array.isArray(rooms) || Object.keys(rooms).length > 5000) throw new Error('Invalid plan');
     for (const [id, name] of Object.entries(rooms)) if (id.length > 64 || typeof name !== 'string' || !name || name.length > ROOM_NAME_MAX) throw new Error('Invalid room');
-    const size = s => ({ ...(s.w !== undefined ? { w: s.w } : {}), ...(s.h !== undefined ? { h: s.h } : {}) });
+    const size = s => ({ ...(s.w !== undefined ? { w: s.w } : {}), ...(s.h !== undefined ? { h: s.h } : {}), ...(s.text !== undefined ? { text: s.text } : {}) });
     return { name: data.name, rooms: { ...rooms }, symbols: symbols.map(s => ({ id: s.id, type: s.type, x: s.x, y: s.y, rotation: s.rotation, ...size(s) })), walls: data.walls.map(w => ({ id: w.id, a: { x: w.a.x, y: w.a.y }, b: { x: w.b.x, y: w.b.y }, thickness: w.thickness, ...(w.room ? { room: w.room } : {}) })) };
   }
   function encode(plan) {
@@ -197,7 +211,7 @@
     decode(text);
     return text;
   }
-  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, roomCorners, resizeRoom, SYMBOLS, symbol, copySymbol, symbolSize, resizeSymbol, ROOM_NAME_MAX, snapToWall };
+  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, roomCorners, resizeRoom, SYMBOLS, symbol, copySymbol, symbolSize, resizeSymbol, editText, TEXT_MAX, ROOM_NAME_MAX, snapToWall };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PlanModel = api;
 })(globalThis);

@@ -413,3 +413,34 @@ test('the whole plan exports as a standalone SVG drawing without grid, selection
   assert.doesNotMatch(text, /transparent|cursor|data-|grid/);
   assert.equal(stored(app).symbols.length, 1);
 });
+
+test('a text item can be placed anywhere, typed in, resized by its handle and exported', () => {
+  const app = loadApp(), canvas = app.get('canvas');
+  pick(app, 'text'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  assert.equal(app.get('symbol-text').value, 'Text');
+  assert.equal(app.get('symbol-text-fields').hidden, false);
+  assert.equal(app.get('symbol-size-fields').hidden, true);
+  app.get('symbol-text').value = 'Living room'; app.get('symbol-font').value = '0.5';
+  app.get('symbol-properties').onsubmit({ preventDefault() {} });
+  const item = stored(app).symbols[0];
+  assert.deepEqual([item.type, item.text, item.h, item.x, item.y], ['text', 'Living room', .5, 2, 1.6]);
+  const label = app.get('symbols').children[0].children.find(n => n.textContent === 'Living room');
+  assert.equal(label.attrs['font-size'], '0.5');
+  app.get('symbol-text').value = '   ';
+  app.get('symbol-properties').onsubmit({ preventDefault() {} });
+  assert.equal(stored(app).symbols[0].text, 'Living room');
+  assert.equal(app.get('message').hidden, false);
+  app.tool('select');
+  const handles = app.get('handles').children.flatMap(g => g.children).map(h => h.dataset.symbolHandle).filter(Boolean);
+  assert.deepEqual(handles, ['rotate', 'h']);
+  const handle = app.get('handles').children.flatMap(g => g.children).find(h => h.dataset.symbolHandle === 'h');
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, target: handle });
+  canvas.fire('pointermove', { clientX: 220, clientY: 211 }); canvas.fire('pointerup');
+  assert.equal(stored(app).symbols[0].h, .9);
+  assert.equal(stored(app).symbols[0].text, 'Living room');
+  app.get('export-svg').onclick();
+  assert.match(app.downloads[0].text, />Living room</);
+  pick(app, 'sink'); canvas.fire('pointerdown', { clientX: 400, clientY: 400 }); canvas.fire('pointerup');
+  assert.equal(app.get('symbol-text-fields').hidden, true);
+  assert.equal(app.get('symbol-size-fields').hidden, false);
+});

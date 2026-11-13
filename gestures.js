@@ -83,6 +83,8 @@ function snapMove(delta, originals) {
 function placeSymbol(e) {
   const before = snapshot(), at = placement(e, state.symbolType), sym = M.symbol(state.symbolType, at.x, at.y, at.rotation);
   state.plan.symbols.push(sym); select(null, sym.id); state.guides = []; commit(before);
+  // A new text item is ready to type into.
+  if (sym.text !== undefined) { $('symbol-text').focus(); $('symbol-text').select?.(); }
 }
 // Ctrl+drag: duplicate the selection in place; the copy is what gets dragged. Returns the selection to restore if nothing moves.
 function duplicateSelection() {
@@ -162,6 +164,7 @@ const DRAG = {
   'symbol-resize'(g, e) {
     const o = g.original, size = M.symbolSize(o), from = toLocal(g.start, o), to = toLocal(point(e, false), o);
     const fit = n => Math.min(20, Math.max(.1, Math.round(n * 100) / 100));
+    if (M.SYMBOLS[o.type].text) { replaceSymbol(M.editText(o, o.text, Math.min(2, fit(size.h + 2 * (to.y - from.y))))); return; }
     const w = g.handle.includes('w') ? fit(size.w + 2 * (to.x - from.x)) : size.w;
     const h = g.handle.includes('h') ? fit(size.h + 2 * (to.y - from.y)) : size.h;
     replaceSymbol(M.resizeSymbol(o, w, h));

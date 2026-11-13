@@ -24,6 +24,7 @@
       <button data-tool="wall" aria-pressed="false"><span class="tool-icon">╱</span><span>Wall<small>Draw in any direction</small></span><kbd>W</kbd></button>
       <button data-tool="pan" aria-pressed="false"><span class="tool-icon">✥</span><span>Pan canvas<small>Or hold the middle mouse button</small></span><kbd>H</kbd></button>
     </div>
+    <section class="symbols"><div class="section-title">Symbols</div><div id="symbol-list" role="group" aria-label="Plan symbols"></div></section>
     <section class="settings"><h2>Drawing settings</h2><label class="toggle"><input id="snap" type="checkbox" checked> Snap to grid <span>10 cm</span></label><label class="toggle"><input id="dimensions" type="checkbox" checked> Show dimensions</label></section>
     <section class="tip"><span>↳</span><div><strong>Keep it simple.</strong><p>Orange marks connect new drawings to walls. Hold the middle mouse button to pan without changing tools.</p></div></section>
     <div class="local-note"><span class="status-dot"></span>Private by design<p>No account. No uploads.<br>Your plan stays in this browser.</p></div>
@@ -33,7 +34,7 @@
     <div id="drawing">
       <svg id="canvas" tabindex="0" aria-label="Drawing canvas. Choose Rectangle or Wall, then drag to draw." xmlns="http://www.w3.org/2000/svg">
         <defs><pattern id="grid" width="0.1" height="0.1" patternUnits="userSpaceOnUse"><path d="M .1 0 H 0 V .1" fill="none" stroke="#dae4ed" stroke-width=".008"/></pattern><pattern id="major-grid" width="1" height="1" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="url(#grid)"/><path d="M 1 0 H 0 V 1" fill="none" stroke="#c0d0df" stroke-width=".012"/></pattern></defs>
-        <rect id="paper" fill="url(#major-grid)"/><g id="walls"></g><g id="preview"></g><g id="handles"></g>
+        <rect id="paper" fill="url(#major-grid)"/><g id="walls"></g><g id="symbols"></g><g id="preview"></g><g id="handles"></g>
       </svg>
       <div id="empty"><div class="empty-icon">⌑</div><h2>Make room for your ideas.</h2><p>Choose Rectangle and drag to draw your first room.<br>Every wall can be moved and measured.</p><button id="start" class="primary">Draw my first room</button><button id="example" class="text-button">Try a sample plan</button></div>
       <div class="zoom"><button id="zoom-out" aria-label="Zoom out">−</button><output id="zoom-level">100%</output><button id="zoom-in" aria-label="Zoom in">+</button></div>
@@ -50,6 +51,17 @@
       <label>Wall thickness <span>m</span><input id="thickness" type="number" min=".05" max="1" step=".01" required></label>
       <button type="submit" class="primary">Apply dimensions</button><button id="delete" type="button" class="danger">Delete wall</button>
       <p class="muted">Dimensions follow the wall centerline. Moving one wall does not move its neighbors.</p>
+    </form>
+    <div id="symbol-properties" hidden>
+      <p class="muted">Drag it on the canvas to move it. Doors and windows snap onto walls.</p>
+      <button id="symbol-rotate" type="button">↻ Rotate 90° <kbd>Q</kbd></button><button id="symbol-delete" type="button" class="danger">Delete</button>
+    </div>
+    <form id="room-properties" hidden>
+      <label>Width <span>m</span><input id="room-width" type="number" min=".1" max="1000" step=".01" required></label>
+      <label>Height <span>m</span><input id="room-height" type="number" min=".1" max="1000" step=".01" required></label>
+      <label>Wall thickness <span>m</span><input id="room-thickness" type="number" min=".05" max="1" step=".01" required></label>
+      <button type="submit" class="primary">Apply dimensions</button>
+      <p class="muted">The four walls resize together from the top-left corner. Alt+click a wall to edit it alone.</p>
     </form>
     <section class="file-actions"><h2>Your workspace</h2><button id="import">↑ Import plan</button><input type="file" id="import-file" accept=".json,application/json" hidden><button id="clear">＋ New plan</button><p class="muted">Export a copy to keep a backup or move your plan to another device.</p></section>
     <div class="scale-note"><strong>Made for the first draft.</strong><p>A sketching tool, not a construction drawing or engineering calculation.</p></div>

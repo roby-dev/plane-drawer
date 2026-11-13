@@ -4,22 +4,22 @@ A local 2D floor plan sketchpad built with plain JavaScript and SVG. No packages
 
 ## Start drawing
 
-1. Install Node.js if it is not already available.
-2. Double-click `start.cmd`, or run `node server.cjs` from this folder.
-3. Open http://127.0.0.1:4173 and keep the terminal open.
-4. Choose **Rectangle**, then drag across the canvas. Each side becomes an independent wall.
+1. Double-click `index.html` (it opens in your browser; no server or install needed).
+2. Choose **Rectangle**, then drag across the canvas. The four walls form one room.
 
 ## Edit your plan
 
-- **Select & move (V):** drag a wall; drag its round endpoints to resize or rotate it.
+- **Select & move (V):** drag a room to move it as one; drag its corner handles to resize it. Alt+click a wall to select just that wall (then drag it or its endpoints). Rooms also have Width/Height fields in Properties.
+- **Symbols:** pick one from the left panel (door, window, toilet, sink, shower, kitchen sink, laundry sink, washing machine, cold/hot water connection, drain) and click to place; keep clicking to place more. Doors and windows snap onto the nearest wall and open toward the side you click. While placing or dragging, a symbol snaps into line with other symbols and wall corners (a purple dashed guide shows the match), so two doors can face each other exactly. Select a symbol to drag it; **Q** rotates it 90°, Delete removes it, Esc finishes.
+- **Measure (hold Ctrl):** hover a corner, then slide along a wall: a dashed line and the distance in meters from that corner follow your cursor. Click (with the Wall tool) to start a line exactly there.
 - **Rectangle (R):** drag to create four walls with visible measurements.
-- **Wall (W):** drag to draw a single wall. Hold Shift for horizontal/vertical alignment.
+- **Wall (W):** drag to draw a single wall. Hold Shift (even mid-drag) to force a perfectly horizontal or vertical line; the orange marker then shows where that line reaches an endpoint or crosses another wall, and the end snaps there.
 - **Pan (H):** drag the canvas. From any tool, hold the middle mouse button (wheel) and drag to pan temporarily; releasing it restores the tool cursor. Scroll or use the +/− controls to zoom.
 - **Wall references:** when drawing a wall or rectangle, an orange marker identifies a nearby endpoint or a point on an existing wall. Starting or ending there uses that exact point, ahead of grid snapping or Shift alignment. Detection uses a 12-pixel radius at any zoom level; existing walls remain independent.
 - Select a wall and use **Properties** to set length, angle and thickness. Click **Apply dimensions**.
 - Delete removes the selected wall. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redoes. Escape cancels a drag.
 
-Measurements use meters along wall centerlines. Grid snapping uses 10 cm steps. Positive angles turn clockwise on screen. Walls are independent: moving one does not reconnect its neighbors. This is a first-draft tool, not a construction document.
+Measurements use meters along wall centerlines. Grid snapping uses 10 cm steps. Positive angles turn clockwise on screen. Separate walls are independent: moving one does not reconnect its neighbors. Plans saved before rooms existed keep their walls independent. This is a first-draft tool, not a construction document.
 
 ## Keep your work
 
@@ -29,11 +29,10 @@ If storage cannot be read or written, the app warns instead of claiming the plan
 
 ## Check the code
 
-Run `node --test app.test.cjs model.test.cjs`, `node --check app.js` and `node --check server.cjs`.
+Optional, only if you have Node.js: run `node --test app.test.cjs model.test.cjs` and `node --check app.js`.
 
 - `model.js`: geometry and versioned, validated plan serialization.
 - `app.js`: SVG drawing, pointer interactions, history and browser storage.
 - `index.html` / `style.css`: accessible controls and responsive workspace.
-- `server.cjs`: optional loopback-only static preview with an explicit asset list.
 
-The app has no runtime network dependencies and sends no drawing data to a server. The local preview server only serves the application files.
+The app has no runtime network dependencies and sends no drawing data to a server.

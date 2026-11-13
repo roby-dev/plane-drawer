@@ -30,10 +30,16 @@ If storage cannot be read or written, the app warns instead of claiming the plan
 
 ## Check the code
 
-Optional, only if you have Node.js: run `node --test app.test.cjs model.test.cjs` and `node --check app.js`.
+Optional, only if you have Node.js: run `node --test app.test.cjs model.test.cjs`.
 
-- `model.js`: geometry and versioned, validated plan serialization.
-- `app.js`: SVG drawing, pointer interactions, history and browser storage.
+- `model.js`: geometry and versioned, validated plan serialization (pure, no DOM).
+- `shapes.js`: how each plan symbol is drawn.
+- `editor.js`: editor state, selection, undo history, plan commands and browser storage.
+- `render.js`: SVG drawing, overlays, the Properties panel and the camera.
+- `gestures.js`: pointer input, snapping and drag handlers per gesture kind.
+- `ui.js`: toolbar, forms, import/export, keyboard shortcuts and startup.
 - `index.html` / `style.css`: accessible controls and responsive workspace.
+
+The scripts are classic (not ES modules) so `index.html` keeps working from a double-click; they share globals and load in the order listed in `index.html`.
 
 The app has no runtime network dependencies and sends no drawing data to a server.

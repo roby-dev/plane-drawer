@@ -26,7 +26,10 @@ function loadApp() {
   const tools = ['select', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
   const storage = new Map(), docListeners = {};
   const context = { PlanModel: model, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: () => new Element(), createElement: () => new Element(), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
-  vm.runInNewContext(fs.readFileSync(require.resolve('./app.js'), 'utf8'), context);
+  // Run the app scripts in index.html order, sharing one global scope like the browser does (model.js is injected above).
+  vm.createContext(context);
+  const scripts = [...fs.readFileSync(require.resolve('./index.html'), 'utf8').matchAll(/<script defer src="([^"]+)">/g)].map(m => m[1]).filter(src => src !== 'model.js');
+  for (const src of scripts) vm.runInContext(fs.readFileSync(require.resolve('./' + src), 'utf8'), context, { filename: src });
   return { get, storage, key: (type, values) => (docListeners[type] || []).forEach(cb => cb({ target: { tagName: 'BODY' }, preventDefault() {}, ...values })), tool: name => tools.find(el => el.dataset.tool === name).onclick(), active: name => tools.find(el => el.dataset.tool === name).attrs['aria-pressed'] };
 }
 

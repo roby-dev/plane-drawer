@@ -74,6 +74,11 @@
     const xs = walls.flatMap(w => [w.a.x, w.b.x]), ys = walls.flatMap(w => [w.a.y, w.b.y]);
     return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
   }
+  // Corners of the room's bounding box, clockwise from top-left.
+  function roomCorners(walls) {
+    const b = roomBounds(walls);
+    return [{ x: b.left, y: b.top }, { x: b.right, y: b.top }, { x: b.right, y: b.bottom }, { x: b.left, y: b.bottom }];
+  }
   // The four walls of a room (top, right, bottom, left) stretched to a new rectangle; ids and thickness are kept.
   function resizeRoom(walls, rect) {
     const points = [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }, { x: rect.left, y: rect.bottom }]
@@ -174,7 +179,7 @@
     decode(text);
     return text;
   }
-  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, resizeRoom, SYMBOLS, symbol, snapToWall };
+  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, roomCorners, resizeRoom, SYMBOLS, symbol, snapToWall };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PlanModel = api;
 })(globalThis);

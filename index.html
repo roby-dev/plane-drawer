@@ -13,69 +13,92 @@
   <script defer src="ui.js"></script>
 </head>
 <body>
-<header>
+<header class="app-header">
   <a class="brand" href="./" aria-label="PlaneDrawer home"><span class="brand-mark">⌑</span> PlaneDrawer<span class="badge">2D studio</span></a>
   <div class="document"><input id="plan-name" aria-label="Plan name" value="Untitled plan" maxlength="80"><span id="save-state" role="status">Stored on this device</span></div>
-  <button id="export-svg" title="Download the plan as an SVG drawing">↓ Export SVG</button>
-  <button id="export" class="primary">↓ Export plan</button>
+  <div class="header-actions">
+    <button id="export-svg" class="btn" title="Download the plan as an SVG drawing">↓ Export SVG</button>
+    <button id="export" class="btn btn-primary">↓ Export plan</button>
+  </div>
 </header>
 <main>
-  <aside class="tools">
-    <div class="section-title">Draw your space</div>
+  <aside class="sidebar tools">
+    <div class="eyebrow">Draw your space</div>
     <h1>A plan starts<br>with a line.</h1>
     <p class="muted">From the idea in your head<br>to a place you can measure.</p>
     <div class="tool-list" role="group" aria-label="Drawing tools">
-      <button data-tool="select" class="active" aria-pressed="true"><span class="tool-icon">↖</span><span>Select & move<small>Move walls or their endpoints</small></span><kbd>V</kbd></button>
-      <button data-tool="rectangle" aria-pressed="false"><span class="tool-icon">▭</span><span>Rectangle<small>Draw four walls at once</small></span><kbd>R</kbd></button>
-      <button data-tool="wall" aria-pressed="false"><span class="tool-icon">╱</span><span>Wall<small>Draw in any direction</small></span><kbd>W</kbd></button>
-      <button data-tool="pan" aria-pressed="false"><span class="tool-icon">✥</span><span>Pan canvas<small>Or hold the middle mouse button</small></span><kbd>H</kbd></button>
+      <button data-tool="select" class="btn tool is-active" aria-pressed="true"><span class="tool-icon">↖</span><span>Select & move<small>Move walls or their endpoints</small></span><kbd>V</kbd></button>
+      <button data-tool="rectangle" class="btn tool" aria-pressed="false"><span class="tool-icon">▭</span><span>Rectangle<small>Draw four walls at once</small></span><kbd>R</kbd></button>
+      <button data-tool="wall" class="btn tool" aria-pressed="false"><span class="tool-icon">╱</span><span>Wall<small>Draw in any direction</small></span><kbd>W</kbd></button>
+      <button data-tool="pan" class="btn tool" aria-pressed="false"><span class="tool-icon">✥</span><span>Pan canvas<small>Or hold the middle mouse button</small></span><kbd>H</kbd></button>
     </div>
-    <section class="symbols"><div class="section-title">Symbols</div><div id="symbol-list" role="group" aria-label="Plan symbols"></div></section>
-    <section class="settings"><h2>Drawing settings</h2><label class="toggle"><input id="snap" type="checkbox" checked> Snap to grid <span>10 cm</span></label><label class="toggle"><input id="dimensions" type="checkbox" checked> Show dimensions</label></section>
+    <section class="panel-section"><div class="eyebrow">Symbols</div><div id="symbol-list" class="chip-grid" role="group" aria-label="Plan symbols"></div></section>
+    <section class="panel-section settings"><h2 class="section-heading">Drawing settings</h2><label class="toggle"><input id="snap" type="checkbox" checked> Snap to grid <span>10 cm</span></label><label class="toggle"><input id="dimensions" type="checkbox" checked> Show dimensions</label></section>
     <section class="tip"><span>↳</span><div><strong>Keep it simple.</strong><p>Orange marks connect new drawings to walls. Hold the middle mouse button to pan without changing tools.</p></div></section>
     <div class="local-note"><span class="status-dot"></span>Private by design<p>No account. No uploads.<br>Your plan stays in this browser.</p></div>
   </aside>
   <section class="workspace" aria-label="Floor plan workspace">
-    <div class="canvas-bar"><span><span class="status-dot"></span> Ground floor <span class="muted">/ Sketch</span></span><div><button id="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button><button id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button><span class="divider"></span><button id="fit">Fit plan</button></div></div>
+    <div class="canvas-bar"><span><span class="status-dot"></span> Ground floor <span class="muted">/ Sketch</span></span><div><button id="undo" class="btn btn-ghost" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button><button id="redo" class="btn btn-ghost" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button><span class="divider"></span><button id="fit" class="btn btn-ghost">Fit plan</button></div></div>
     <div id="drawing">
       <svg id="canvas" tabindex="0" aria-label="Drawing canvas. Choose Rectangle or Wall, then drag to draw." xmlns="http://www.w3.org/2000/svg">
         <defs><pattern id="grid" width="0.1" height="0.1" patternUnits="userSpaceOnUse"><path d="M .1 0 H 0 V .1" fill="none" stroke="#dae4ed" stroke-width=".008"/></pattern><pattern id="major-grid" width="1" height="1" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="url(#grid)"/><path d="M 1 0 H 0 V 1" fill="none" stroke="#c0d0df" stroke-width=".012"/></pattern></defs>
         <rect id="paper" fill="url(#major-grid)"/><g id="walls"></g><g id="symbols"></g><g id="labels"></g><g id="preview"></g><g id="handles"></g>
       </svg>
-      <div id="empty"><div class="empty-icon">⌑</div><h2>Make room for your ideas.</h2><p>Choose Rectangle and drag to draw your first room.<br>Every wall can be moved and measured.</p><button id="start" class="primary">Draw my first room</button><button id="example" class="text-button">Try a sample plan</button></div>
-      <div class="zoom"><button id="zoom-out" aria-label="Zoom out">−</button><output id="zoom-level">100%</output><button id="zoom-in" aria-label="Zoom in">+</button></div>
+      <div id="empty" class="empty-canvas"><div class="empty-icon">⌑</div><h2>Make room for your ideas.</h2><p>Choose Rectangle and drag to draw your first room.<br>Every wall can be moved and measured.</p><button id="start" class="btn btn-primary">Draw my first room</button><button id="example" class="btn btn-link">Try a sample plan</button></div>
+      <div class="zoom"><button id="zoom-out" class="btn btn-ghost" aria-label="Zoom out">−</button><output id="zoom-level">100%</output><button id="zoom-in" class="btn btn-ghost" aria-label="Zoom in">+</button></div>
       <span class="north">N<br>↑</span>
     </div>
-    <footer><span id="hint">Select a wall to move it or edit its dimensions.</span><span id="wall-count">0 walls</span><span>Meters</span></footer>
+    <footer class="status-bar"><span id="hint">Select a wall to move it or edit its dimensions.</span><span id="wall-count">0 walls</span><span>Meters</span></footer>
   </section>
-  <aside class="inspector">
-    <div class="section-title">Properties</div><h2 id="selection-title">Your floor plan</h2>
-    <div id="no-selection"><div class="selection-icon">⌖</div><h3>Everything in its place.</h3><p>Select a wall on the canvas to adjust its length, angle and thickness.</p></div>
-    <form id="properties" hidden>
-      <label>Length <span>m</span><input id="length" type="number" min=".1" max="1000" step=".01" required></label>
-      <label>Angle <span>°</span><input id="angle" type="number" min="-360" max="360" step=".1" required></label>
-      <label>Wall thickness <span>m</span><input id="thickness" type="number" min=".05" max="1" step=".01" required></label>
-      <button type="submit" class="primary">Apply dimensions</button><button id="delete" type="button" class="danger">Delete wall</button>
-      <p class="muted">Dimensions follow the wall centerline. Moving one wall does not move its neighbors.</p>
+  <aside class="sidebar inspector">
+    <div class="eyebrow">Properties</div><h2 id="selection-title" class="inspector-title">Your floor plan</h2>
+    <div id="no-selection" class="empty-state"><div class="selection-icon">⌖</div><h3>Everything in its place.</h3><p>Select a wall on the canvas to adjust its length, angle and thickness.</p></div>
+    <form id="properties" class="form" hidden>
+      <div class="field-row">
+        <label class="field">Length <span class="field-unit">m</span><input id="length" type="number" min=".1" max="1000" step=".01" required></label>
+        <label class="field">Angle <span class="field-unit">°</span><input id="angle" type="number" min="-360" max="360" step=".1" required></label>
+      </div>
+      <label class="field">Wall thickness <span class="field-unit">m</span><input id="thickness" type="number" min=".05" max="1" step=".01" required></label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-block">Apply dimensions</button>
+        <button id="delete" type="button" class="btn btn-danger btn-block">Delete wall</button>
+      </div>
+      <p class="form-note">Dimensions follow the wall centerline. Moving one wall does not move its neighbors.</p>
     </form>
-    <form id="symbol-properties" hidden>
-      <label>Width <span>m</span><input id="symbol-width" type="number" min=".1" max="20" step=".01" required></label>
-      <label>Depth <span>m</span><input id="symbol-depth" type="number" min=".1" max="20" step=".01" required></label>
-      <button type="submit" class="primary">Apply size</button>
-      <button id="symbol-rotate" type="button">↻ Rotate 90° <kbd>Q</kbd></button><button id="symbol-delete" type="button" class="danger">Delete</button>
-      <p class="muted">Drag it on the canvas to move it. Doors and windows snap onto walls.</p>
+    <form id="symbol-properties" class="form" hidden>
+      <div class="field-row">
+        <label class="field">Width <span class="field-unit">m</span><input id="symbol-width" type="number" min=".1" max="20" step=".01" required></label>
+        <label class="field">Depth <span class="field-unit">m</span><input id="symbol-depth" type="number" min=".1" max="20" step=".01" required></label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-block">Apply size</button>
+        <div class="btn-pair">
+          <button id="symbol-rotate" type="button" class="btn">↻ Rotate <kbd>Q</kbd></button>
+          <button id="symbol-delete" type="button" class="btn btn-danger">Delete</button>
+        </div>
+      </div>
+      <p class="form-note">Drag it to move it; use its handles to rotate or resize. Doors and windows snap onto walls.</p>
     </form>
-    <form id="room-properties" hidden>
-      <label>Name<input id="room-name" type="text" maxlength="40" placeholder="Kitchen, bedroom…"></label>
-      <label>Width <span>m</span><input id="room-width" type="number" min=".1" max="1000" step=".01" required></label>
-      <label>Height <span>m</span><input id="room-height" type="number" min=".1" max="1000" step=".01" required></label>
-      <label>Wall thickness <span>m</span><input id="room-thickness" type="number" min=".05" max="1" step=".01" required></label>
-      <button type="submit" class="primary">Apply dimensions</button>
-      <p class="muted">The four walls resize together from the top-left corner. Alt+click a wall to edit it alone.</p>
+    <form id="room-properties" class="form" hidden>
+      <label class="field">Name<input id="room-name" type="text" maxlength="40" placeholder="Kitchen, bedroom…"></label>
+      <div class="field-row">
+        <label class="field">Width <span class="field-unit">m</span><input id="room-width" type="number" min=".1" max="1000" step=".01" required></label>
+        <label class="field">Height <span class="field-unit">m</span><input id="room-height" type="number" min=".1" max="1000" step=".01" required></label>
+      </div>
+      <label class="field">Wall thickness <span class="field-unit">m</span><input id="room-thickness" type="number" min=".05" max="1" step=".01" required></label>
+      <div class="form-actions"><button type="submit" class="btn btn-primary btn-block">Apply</button></div>
+      <p class="form-note">The four walls resize together from the top-left corner. Alt+click a wall to edit it alone.</p>
     </form>
-    <section class="file-actions"><h2>Your workspace</h2><button id="import">↑ Import plan</button><input type="file" id="import-file" accept=".json,application/json" hidden><button id="clear">＋ New plan</button><p class="muted">Export a copy to keep a backup or move your plan to another device.</p></section>
+    <section class="panel-section">
+      <h2 class="section-heading">Your workspace</h2>
+      <div class="form-actions">
+        <button id="import" class="btn btn-block btn-start">↑ Import plan</button><input type="file" id="import-file" accept=".json,application/json" hidden>
+        <button id="clear" class="btn btn-block btn-start">＋ New plan</button>
+      </div>
+      <p class="note">Export a copy to keep a backup or move your plan to another device.</p>
+    </section>
     <div class="scale-note"><strong>Made for the first draft.</strong><p>A sketching tool, not a construction drawing or engineering calculation.</p></div>
   </aside>
 </main>
-<div id="message" role="alert" hidden></div>
+<div id="message" class="toast" role="alert" hidden></div>
 </body></html>

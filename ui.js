@@ -12,8 +12,8 @@ const palette = [];
 
 function setTool(next) {
   cancelGesture(); state.tool = next; state.ghost = null; state.guides = [];
-  palette.forEach(b => b.classList.toggle('active', next === 'symbol' && b.dataset.symbol === state.symbolType));
-  document.querySelectorAll('[data-tool]').forEach(b => { b.classList.toggle('active', b.dataset.tool === next); b.setAttribute('aria-pressed', b.dataset.tool === next); });
+  palette.forEach(b => b.classList.toggle('is-active', next === 'symbol' && b.dataset.symbol === state.symbolType));
+  document.querySelectorAll('[data-tool]').forEach(b => { b.classList.toggle('is-active', b.dataset.tool === next); b.setAttribute('aria-pressed', b.dataset.tool === next); });
   $('hint').textContent = TOOL_HINTS[next];
   render();
 }
@@ -22,7 +22,7 @@ function setTool(next) {
 document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
 Object.entries(M.SYMBOLS).forEach(([type, def]) => {
   const button = document.createElement('button');
-  button.type = 'button'; button.dataset.symbol = type; button.textContent = def.label; button.title = def.label;
+  button.type = 'button'; button.className = 'btn'; button.dataset.symbol = type; button.textContent = def.label; button.title = def.label;
   button.onclick = () => { state.symbolType = type; setTool('symbol'); };
   palette.push(button); $('symbol-list').append(button);
 });

@@ -168,6 +168,7 @@ function planSvg() {
 // The Properties panel: room, wall or symbol fields, depending on the selection.
 function renderInspector() {
   const group = selectedWalls(), w = group[0], room = group.length === 4, sym = selectedSymbol();
+  $('inspector').hidden = !w && !sym;
   $('properties').hidden = !w || room; $('room-properties').hidden = !room; $('symbol-properties').hidden = !sym; $('no-selection').hidden = !!w || !!sym;
   $('selection-title').textContent = sym ? M.SYMBOLS[sym.type].label : room ? 'Selected room' : w ? 'Selected wall' : 'Your floor plan';
   if (room) {

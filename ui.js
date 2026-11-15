@@ -10,21 +10,48 @@ const TOOL_HINTS = {
 const TOOL_KEYS = { v: 'select', r: 'rectangle', w: 'wall', h: 'pan' };
 const palette = [];
 
+function setLibraryOpen(open) {
+  $('tools-panel').classList.toggle('is-library-open', open);
+  $('toggle-symbols').setAttribute('aria-expanded', open);
+}
+
 function setTool(next) {
   cancelGesture(); state.tool = next; state.ghost = null; state.guides = [];
-  palette.forEach(b => b.classList.toggle('is-active', next === 'symbol' && b.dataset.symbol === state.symbolType));
+  setLibraryOpen(false);
+  $('toggle-symbols').classList.toggle('is-active', next === 'symbol');
+  palette.forEach(b => { const active = next === 'symbol' && b.dataset.symbol === state.symbolType; b.classList.toggle('is-active', active); b.setAttribute('aria-pressed', active); });
   document.querySelectorAll('[data-tool]').forEach(b => { b.classList.toggle('is-active', b.dataset.tool === next); b.setAttribute('aria-pressed', b.dataset.tool === next); });
   $('hint').textContent = TOOL_HINTS[next];
   render();
 }
 
 // Toolbar and symbol palette
+$('toggle-symbols').onclick = () => setLibraryOpen(!$('tools-panel').classList.contains('is-library-open'));
+setLibraryOpen(false);
 document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+const symbolGroups = [
+  { label: 'Doors & windows', types: ['door', 'window', 'garage-door', 'sliding-door'] },
+  { label: 'Kitchen & bathroom', types: ['toilet', 'sink', 'shower', 'kitchen-sink'] },
+  { label: 'Utilities', types: ['laundry-sink', 'washer', 'water-cold', 'water-hot', 'drain'] },
+  { label: 'Stairs & details', types: ['stairs-up', 'stairs-down', 'car', 'text'] }
+];
+const symbolContainers = new Map();
+// New catalog items remain reachable even if their visual category is not assigned yet.
+const otherTypes = Object.keys(M.SYMBOLS).filter(type => !symbolGroups.some(group => group.types.includes(type)));
+if (otherTypes.length) symbolGroups.push({ label: 'More symbols', types: otherTypes });
+symbolGroups.forEach((group, index) => {
+  const details = document.createElement('details'), summary = document.createElement('summary'), list = document.createElement('div');
+  details.className = 'symbol-group'; details.open = index === 0;
+  summary.className = 'title-4'; summary.textContent = group.label;
+  list.className = 'chip-grid'; list.setAttribute('role', 'group'); list.setAttribute('aria-label', group.label);
+  details.append(summary); details.append(list); $('symbol-list').append(details);
+  group.types.forEach(type => symbolContainers.set(type, list));
+});
 Object.entries(M.SYMBOLS).forEach(([type, def]) => {
   const button = document.createElement('button');
-  button.type = 'button'; button.className = 'btn'; button.dataset.symbol = type; button.textContent = def.label; button.title = def.label;
-  button.onclick = () => { state.symbolType = type; setTool('symbol'); };
-  palette.push(button); $('symbol-list').append(button);
+  button.type = 'button'; button.className = 'btn catalog-item button-xsm'; button.dataset.symbol = type; button.textContent = def.label; button.title = def.label; button.setAttribute('aria-pressed', 'false');
+  button.onclick = () => { state.symbolType = type; setTool('symbol'); svg.focus({ preventScroll: true }); };
+  palette.push(button); symbolContainers.get(type).append(button);
 });
 $('start').onclick = () => setTool('rectangle');
 $('undo').onclick = () => undo(); $('redo').onclick = () => undo(true);
@@ -32,6 +59,7 @@ $('zoom-in').onclick = () => zoom(1.2); $('zoom-out').onclick = () => zoom(1 / 1
 $('dimensions').onchange = render;
 
 // Inspector
+$('close-inspector').onclick = () => { cancelGesture(); select(); renderInspector(); render(); svg.focus({ preventScroll: true }); };
 $('symbol-rotate').onclick = rotateSelected; $('symbol-delete').onclick = removeSelected; $('delete').onclick = removeSelected;
 $('properties').onsubmit = e => {
   e.preventDefault();

@@ -38,7 +38,13 @@ Plans remain in browser localStorage, not in the hosting service. Export a JSON 
 ## Start drawing
 
 1. Double-click `index.html` (it opens in your browser; no server or install needed).
-2. Choose **Rectangle**, then drag across the canvas. The four walls form one room.
+2. Choose **Room**, then drag across the canvas. The four walls form one room.
+
+The editor keeps the canvas in view: tools and grouped symbols sit on the left, and **Properties** appears only when you select a room, wall or symbol. Closing Properties clears the selection without changing the drawing or its camera. On a narrow screen, open **Symbols** to browse the library; choosing an item closes the library so you can place it on the canvas.
+
+Symbols are grouped into **Doors & windows**, **Kitchen & bathroom**, **Utilities**, and **Stairs & details**. **Files** contains **Import plan** and **New plan**. **Export plan** still saves an editable JSON backup; **Export SVG** still saves a drawing.
+
+Manrope and its SIL Open Font License are embedded in `style.css`. Phosphor icon definitions and their MIT license are embedded in `index.html`. The standalone editor still needs only its original eight runtime files, with no font or icon service requests. Its interface matches the landing while the canvas stays neutral; drawing geometry, saved format and SVG export rendering are unchanged.
 
 ## Edit your plan
 
@@ -49,7 +55,7 @@ Plans remain in browser localStorage, not in the hosting service. Export a JSON 
 - **Text:** pick **Text** in the symbol list and click anywhere to place a label; the Text field is ready to type into (up to 60 characters). Its Letter height (0.10–2 m) is set in Properties or by dragging its bottom handle; it moves, rotates, copies, aligns and exports like any symbol.
 - **Room names:** select a room and type a Name (up to 40 characters) in Properties; it shows in the middle of the room and is kept by Ctrl+drag copies. Clear the field to remove it.
 - **Measure (hold Ctrl):** hover a corner, then slide along a wall: a dashed line and the distance in meters from that corner follow your cursor. Click (with the Wall tool) to start a line exactly there.
-- **Rectangle (R):** drag to create four walls with visible measurements.
+- **Room (R):** drag to create four walls with visible measurements.
 - **Wall (W):** drag to draw a single wall. Hold Shift (even mid-drag) to force a perfectly horizontal or vertical line; the orange marker then shows where that line reaches an endpoint or crosses another wall, and the end snaps there.
 - **Pan (H):** drag the canvas. From any tool, hold the middle mouse button (wheel) and drag to pan temporarily; releasing it restores the tool cursor. Scroll or use the +/− controls to zoom.
 - **Wall references:** when drawing a wall or rectangle, an orange marker identifies a nearby endpoint or a point on an existing wall. Starting or ending there uses that exact point, ahead of grid snapping or Shift alignment. The same markers appear while editing: dragging a wall endpoint, a room corner, or moving a wall snaps onto other walls (Shift also works when dragging an endpoint). Detection uses a 12-pixel radius at any zoom level; existing walls remain independent.

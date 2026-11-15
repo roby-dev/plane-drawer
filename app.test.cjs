@@ -6,12 +6,16 @@ const model = require('./model.js');
 
 function loadApp() {
   class Element {
-    constructor() { this.attrs = {}; this.dataset = {}; this.style = {}; this.listeners = {}; this.children = []; this.checked = true; this.clientWidth = 800; this.clientHeight = 600; this.classList = { toggle() {} }; }
+    constructor() {
+      this.attrs = {}; this.dataset = {}; this.style = {}; this.listeners = {}; this.children = []; this.checked = true; this.clientWidth = 800; this.clientHeight = 600;
+      const values = new Set();
+      this.classList = { toggle(name, force = !values.has(name)) { if (force) values.add(name); else values.delete(name); return force; }, add: name => values.add(name), remove: name => values.delete(name), contains: name => values.has(name) };
+    }
     setAttribute(k, v) { this.attrs[k] = String(v); }
     append(node) { this.children.push(node); }
     replaceChildren() { this.children = []; }
     addEventListener(type, callback) { this.listeners[type] = callback; }
-    focus() {}
+    focus() { this.focused = true; }
     click() {}
     setPointerCapture(id) { this.capture = id; }
     hasPointerCapture(id) { return this.capture === id; }
@@ -27,13 +31,91 @@ function loadApp() {
   const tools = ['select', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
   const storage = new Map(), docListeners = {}, downloads = [];
   const markup = node => '<' + node.tagName + Object.entries(node.attrs).map(([k, v]) => ' ' + k + '="' + v + '"').join('') + '>' + (node.textContent ?? node.children.map(markup).join('')) + '</' + node.tagName + '>';
-  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: () => new Element(), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
+  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: tag => Object.assign(new Element(), { tagName: tag }), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
   // Run the app scripts in index.html order, sharing one global scope like the browser does (model.js is injected above).
   vm.createContext(context);
   const scripts = [...fs.readFileSync(require.resolve('./index.html'), 'utf8').matchAll(/<script defer src="([^"]+)">/g)].map(m => m[1]).filter(src => src !== 'model.js');
   for (const src of scripts) vm.runInContext(fs.readFileSync(require.resolve('./' + src), 'utf8'), context, { filename: src });
   return { get, storage, downloads, key: (type, values) => (docListeners[type] || []).forEach(cb => cb({ target: { tagName: 'BODY' }, preventDefault() {}, ...values })), tool: name => tools.find(el => el.dataset.tool === name).onclick(), active: name => tools.find(el => el.dataset.tool === name).attrs['aria-pressed'] };
 }
+
+test('properties appear for a selection and closing them preserves the drawing, storage and camera', () => {
+  const app = loadApp(), canvas = app.get('canvas');
+  assert.equal(app.get('inspector').hidden, true);
+  app.tool('rectangle');
+  canvas.fire('pointerdown'); canvas.fire('pointermove', { clientX: 330, clientY: 275 }); canvas.fire('pointerup');
+  const before = app.storage.get('planedrawer.plan.v1');
+  const wall = JSON.parse(before).walls[0];
+  app.tool('select');
+  canvas.fire('pointerdown', { target: { dataset: { wall: wall.id } } }); canvas.fire('pointerup');
+  assert.equal(app.get('inspector').hidden, false);
+  assert.equal(app.get('room-properties').hidden, false);
+  const view = canvas.attrs.viewBox;
+  app.get('close-inspector').onclick();
+  assert.equal(app.get('inspector').hidden, true);
+  assert.equal(app.storage.get('planedrawer.plan.v1'), before);
+  assert.equal(canvas.attrs.viewBox, view);
+  assert.equal(canvas.focused, true);
+  canvas.fire('pointerdown', { target: { dataset: { wall: wall.id } }, altKey: true }); canvas.fire('pointerup');
+  assert.equal(app.get('inspector').hidden, false);
+  assert.equal(app.get('properties').hidden, false);
+  assert.equal(app.get('room-properties').hidden, true);
+  app.key('keydown', { key: 'Escape' });
+  assert.equal(app.get('inspector').hidden, true);
+  assert.equal(app.storage.get('planedrawer.plan.v1'), before);
+});
+
+test('the symbol library groups every catalog item once and keeps placement and pressed states intact', () => {
+  const app = loadApp();
+  const groups = app.get('symbol-list').children;
+  assert.deepEqual(groups.map(group => group.tagName), ['details', 'details', 'details', 'details']);
+  assert.deepEqual(groups.map(group => group.children[0].textContent), ['Doors & windows', 'Kitchen & bathroom', 'Utilities', 'Stairs & details']);
+  const descendants = node => [node, ...node.children.flatMap(descendants)];
+  const buttons = descendants(app.get('symbol-list')).filter(node => node.dataset.symbol);
+  assert.deepEqual(buttons.map(button => button.dataset.symbol).sort(), Object.keys(model.SYMBOLS).sort());
+  const toilet = buttons.find(button => button.dataset.symbol === 'toilet');
+  toilet.onclick();
+  assert.equal(toilet.attrs['aria-pressed'], 'true');
+  assert.ok(buttons.filter(button => button !== toilet).every(button => button.attrs['aria-pressed'] === 'false'));
+  const canvas = app.get('canvas'); canvas.fire('pointerdown');
+  const saved = JSON.parse(app.storage.get('planedrawer.plan.v1'));
+  assert.equal(saved.symbols[0].type, 'toilet');
+  app.tool('select');
+  assert.ok(buttons.every(button => button.attrs['aria-pressed'] === 'false'));
+});
+
+test('the compact library opens on demand and closes on placement or a drawing tool without saving changes', () => {
+  const app = loadApp();
+  const toggle = app.get('toggle-symbols'), panel = app.get('tools-panel');
+  assert.equal(toggle.attrs['aria-expanded'], 'false');
+  toggle.onclick();
+  assert.equal(toggle.attrs['aria-expanded'], 'true');
+  assert.equal(panel.classList.contains('is-library-open'), true);
+  pick(app, 'window');
+  assert.equal(toggle.attrs['aria-expanded'], 'false');
+  assert.equal(panel.classList.contains('is-library-open'), false);
+  assert.equal(app.get('canvas').focused, true);
+  toggle.onclick(); app.tool('wall');
+  assert.equal(toggle.attrs['aria-expanded'], 'false');
+  assert.equal(panel.classList.contains('is-library-open'), false);
+  assert.equal(app.storage.size, 0);
+});
+
+test('the standalone editor includes its font and icon definitions without external runtime requests', () => {
+  const html = fs.readFileSync(require.resolve('./index.html'), 'utf8');
+  const css = fs.readFileSync(require.resolve('./style.css'), 'utf8');
+  const encodedFont = css.match(/data:font\/woff2;base64,([^\s"')]+)/)?.[1];
+  assert.ok(encodedFont);
+  assert.equal(Buffer.from(encodedFont, 'base64').subarray(0, 4).toString(), 'wOF2');
+  assert.match(css, /SIL OPEN FONT LICENSE/);
+  assert.match(html, /MIT License/);
+  const defined = new Set([...html.matchAll(/<symbol id="([^"]+)"/g)].map(match => match[1]));
+  for (const match of html.matchAll(/<use href="#([^"]+)"/g)) assert.ok(defined.has(match[1]), match[1]);
+  assert.doesNotMatch(html, /(?:src|href)="https?:\/\//);
+  assert.doesNotMatch(css, /url\(["']?https?:\/\//);
+  assert.match(html, /id="inspector"[^>]+hidden/);
+  assert.match(html, /aria-controls="symbol-browser"/);
+});
 
 test('middle-button drag pans temporarily without drawing or changing the active tool', () => {
   for (const name of ['select', 'rectangle', 'wall', 'pan']) {
@@ -174,7 +256,10 @@ test('holding Ctrl on a corner and sliding along a wall measures from that corne
   assert.ok(!labels().includes('2.00 m'));
 });
 
-function pick(app, type) { app.get('symbol-list').children.find(b => b.dataset.symbol === type).onclick(); }
+function pick(app, type) {
+  const descendants = node => [node, ...node.children.flatMap(descendants)];
+  descendants(app.get('symbol-list')).find(b => b.dataset.symbol === type).onclick();
+}
 
 test('a door snaps onto the wall it is placed near; a toilet goes where you click', () => {
   const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
@@ -443,4 +528,36 @@ test('a text item can be placed anywhere, typed in, resized by its handle and ex
   pick(app, 'sink'); canvas.fire('pointerdown', { clientX: 400, clientY: 400 }); canvas.fire('pointerup');
   assert.equal(app.get('symbol-text-fields').hidden, true);
   assert.equal(app.get('symbol-size-fields').hidden, false);
+});
+
+test('every catalog symbol can be placed, inspected and deselected without changing saved data or camera', () => {
+  const descendants = node => [node, ...node.children.flatMap(descendants)];
+  for (const type of Object.keys(model.SYMBOLS)) {
+    const app = loadApp(), canvas = app.get('canvas');
+    app.get('toggle-symbols').onclick();
+    const buttons = descendants(app.get('symbol-list')).filter(node => node.dataset.symbol);
+    buttons.find(button => button.dataset.symbol === type).onclick();
+    assert.equal(app.get('toggle-symbols').attrs['aria-expanded'], 'false');
+    assert.equal(buttons.filter(button => button.attrs['aria-pressed'] === 'true').length, 1);
+    assert.equal(app.storage.size, 0);
+    canvas.fire('pointermove', { clientX: 220, clientY: 220 });
+    canvas.fire('pointerdown', { clientX: 220, clientY: 220 }); canvas.fire('pointerup');
+    const before = app.storage.get('planedrawer.plan.v1'), plan = JSON.parse(before);
+    assert.equal(plan.symbols[0].type, type);
+    app.key('keydown', { key: 'v' });
+    const target = { dataset: { symbol: plan.symbols[0].id } };
+    canvas.fire('pointerdown', { target }); canvas.fire('pointerup');
+    assert.equal(app.get('inspector').hidden, false);
+    assert.equal(app.get('symbol-properties').hidden, false);
+    assert.equal(app.get('symbol-text-fields').hidden, !model.SYMBOLS[type].text);
+    const view = canvas.attrs.viewBox;
+    app.get('close-inspector').onclick();
+    assert.equal(app.get('inspector').hidden, true);
+    assert.equal(app.storage.get('planedrawer.plan.v1'), before);
+    assert.equal(canvas.attrs.viewBox, view);
+    canvas.fire('pointerdown', { target }); canvas.fire('pointerup');
+    app.key('keydown', { key: 'Escape' });
+    assert.equal(app.get('inspector').hidden, true);
+    assert.equal(app.storage.get('planedrawer.plan.v1'), before);
+  }
 });

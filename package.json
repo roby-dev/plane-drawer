@@ -1,0 +1,13 @@
+{
+  "name": "plane-drawer",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node scripts/prepare-editor.mjs && astro dev --root landing --host 127.0.0.1",
+    "build": "node scripts/prepare-editor.mjs && astro build --root landing",
+    "preview": "astro preview --root landing --host 127.0.0.1",
+    "test": "node --test app.test.cjs model.test.cjs landing.test.mjs routes.test.mjs"
+  },
+  "engines": { "node": ">=22.23.4" },
+  "devDependencies": { "astro": "7.4.12" }
+}

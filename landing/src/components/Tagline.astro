@@ -1,0 +1,6 @@
+---
+const lines = ['You already know the place.', 'Now see how it fits.'];
+---
+<section class="tagline-section" aria-labelledby="tagline-title">
+  <div class="frame"><p class="eyebrow caption-3">Your place is not a template</p><h2 class="heading-2 tagline" id="tagline-title" data-tagline>{lines.map((line, index) => <>{line.split(' ').map(word => <><span data-tagline-word>{word}</span>{' '}</>)}{index === 0 && <br />}</>)}</h2><p class="body-3">A hallway you have walked a thousand times. A corner you know by heart. Put the picture on paper, in your own way.</p></div>
+</section>

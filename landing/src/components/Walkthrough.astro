@@ -1,0 +1,14 @@
+---
+import Icon from './Icon.astro';
+const stages = [
+  ['Draw the rooms', 'Start with a rectangle or a wall. Add measurements when you have them.'],
+  ['Make it familiar', 'Place the doors, windows and fixtures you recognize.'],
+  ['See it together', 'Name the rooms and take a step back. Your space is finally in view.'],
+];
+---
+<section class="walkthrough frame" id="how-it-works" aria-labelledby="walkthrough-title" data-reveal>
+  <div class="section-intro"><p class="eyebrow caption-3">How it works</p><h2 id="walkthrough-title" class="heading-2">One room at a time.</h2><p class="body-3">Try the three steps to see the illustration change, then draw your own place in the editor.</p></div>
+  <div class="step-grid">
+    {stages.map(([title, description], index) => <article class="step-card"><span class="step-top"><span class="caption-3">0{index + 1}</span><Icon name="arrow-up-right" /></span><h3 class="heading-6">{title}</h3><p class="body-6">{description}</p></article>)}
+  </div>
+</section>

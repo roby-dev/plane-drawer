@@ -1,0 +1,4 @@
+node_modules/
+dist/
+landing/.astro/
+landing/public/app/

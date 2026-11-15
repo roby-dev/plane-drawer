@@ -1,0 +1,26 @@
+---
+import ActionLink from './ActionLink.astro';
+import FloorPlan from './FloorPlan.astro';
+import Icon from './Icon.astro';
+---
+<section class="hero frame" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <p class="eyebrow caption-3"><span class="status-dot" aria-hidden="true"></span> A sketchpad for the place you live</p>
+    <h1 id="hero-title" class="heading-1">Your home.<br />In view.</h1>
+    <p class="hero-description body-3">Draw the rooms you know, place the familiar details, and see your space together. No existing floor plan needed.</p>
+    <ActionLink />
+    <p class="proof-line caption-4"><Icon name="check" /> No account. No drawing uploads.</p>
+  </div>
+  <div class="drawing-area">
+    <div class="plan-card" id="demo-plan" data-stage="2">
+      <div class="board-top"><span class="caption-4">A place you know</span><span class="caption-5">Illustrative sketch</span></div>
+      <div class="board-canvas"><FloorPlan /></div>
+      <div class="board-bottom"><span class="caption-5">Your place, from above</span><button type="button" class="replay button-xsm" id="replay-sketch" aria-label="Replay the floor plan drawing animation" disabled><Icon name="arrow-counter-clockwise" /> Replay sketch</button></div>
+      <span class="clarity-label caption-3">Not CAD.<br />Your point of view.</span>
+    </div>
+    <div class="stage-controls demo-controls" role="group" aria-label="Floor plan illustration steps">
+      {['Rooms', 'Details', 'Together'].map((label, index) => <button type="button" class="stage-button title-5" data-stage-button={index} aria-pressed={index === 2 ? 'true' : 'false'} aria-controls="demo-plan" disabled><span class="caption-5">0{index + 1}</span><span>{label}</span></button>)}
+    </div>
+    <p id="stage-caption" class="board-caption caption-5" aria-live="polite">Illustrative sketch: room names bring the whole place together. Open the editor to draw your own.</p>
+  </div>
+</section>

@@ -1,0 +1,15 @@
+---
+import Icon from './Icon.astro';
+const questions = [
+  ['Do I need an existing floor plan?', 'No. Start with the rooms you know and add measurements when you have them. A familiar outline is enough to get started.'],
+  ['Is this for architects?', 'PlaneDrawer is a first draft, not a construction document. It is a sketchpad for everyday spaces, not a replacement for professional plans.'],
+  ['What can I put in my sketch?', 'Draw walls and rooms, then add doors, windows, text and fixtures such as sinks, showers and toilets. The editor also includes stairs and other symbols.'],
+  ['Where is my drawing saved?', 'Changes are saved in localStorage for this browser and address. There is no cloud backup. Clearing browser data or switching browsers can make a plan unavailable. Export a JSON backup to keep a separate copy.'],
+  ['Can I save or print the result?', 'Export an SVG drawing to open or print elsewhere. Export JSON to keep an editable backup that you can import again. An SVG drawing cannot be imported back as a plan.'],
+  ['Do I need an account or payment details?', 'No. The sketchpad opens in your browser without an account or payment details. Your drawing stays in your browser unless you export and share it yourself.'],
+];
+---
+<section class="faq frame" id="questions" aria-labelledby="faq-title" data-reveal>
+  <div class="section-intro"><p class="eyebrow caption-3">Before you start</p><h2 id="faq-title" class="heading-2">A few familiar questions.</h2></div>
+  <div class="faq-list">{questions.map(([question, answer]) => <details data-faq><summary class="title-3"><span>{question}</span><Icon name="caret-down" /></summary><p class="body-6">{answer}</p></details>)}</div>
+</section>

@@ -2,6 +2,39 @@
 
 A local 2D floor plan sketchpad built with plain JavaScript and SVG. No packages, account, build step, or cloud service.
 
+## Landing page
+
+The Astro landing introduces PlaneDrawer as a sketchpad for everyday spaces, not professional CAD. The editor remains independent: opening the root `index.html` still needs no installation or build.
+
+The landing keeps electric blue, lime and charcoal, using one self-hosted Manrope font family. Its SIL Open Font License ships in `landing/public/fonts/`; Phosphor icons include their MIT license in `landing/public/licenses/`. Named typography classes and spacing tokens live in `landing/src/styles/landing.css`. The SVG sketch, section reveals, modal mobile navigation and word reveal respect reduced-motion settings. The complete content remains visible without JavaScript; demo controls enable only when their handlers are ready.
+
+The site includes factual privacy and usage notes, a branded 404 page, and a local social sharing image. There are no account forms, analytics, tracking cookies, customer claims or invented testimonials. Functional checks cover the modal state, sequential word reveal, motion preference, static pages and real dev/preview routes. Visual browser checks, including the final 390px layout, remain pending when browser access is unavailable.
+
+With Node.js 22.23.4 or newer (Node 24 recommended):
+
+```sh
+npm ci
+npm run dev
+```
+
+Open the local URL printed by Astro, including `/plane-drawer/`. The landing links to the unchanged editor at `/plane-drawer/app/`.
+
+```sh
+npm run build
+npm test
+npm run preview
+```
+
+The static site is generated in `dist/`. `scripts/prepare-editor.mjs` copies only the editor's eight runtime files into the ignored `landing/public/app/` directory before dev or build; edit the originals at the repository root, never the generated copies. Restart dev after editing the original editor files.
+
+### GitHub Pages
+
+`landing/astro.config.mjs` targets `https://roby-dev.github.io/plane-drawer/`. Change `site` and `base` if the owner, repository name, or domain changes. For a root-domain deployment, build with `npm run build -- --base /` and run landing checks with `TEST_BASE=/`.
+
+The output is static and can be hosted on GitHub Pages. Publication is separate from the local build; no deployment has been triggered. See the [Astro GitHub Pages guide](https://docs.astro.build/en/guides/deploy/github/) for the deployment workflow and Pages settings.
+
+Plans remain in browser localStorage, not in the hosting service. Export a JSON backup before switching between the local file, localhost, or the published site: each origin has separate browser storage. SVG exports are drawings, not editable backups.
+
 ## Start drawing
 
 1. Double-click `index.html` (it opens in your browser; no server or install needed).

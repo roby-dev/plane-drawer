@@ -1,0 +1,15 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+<SiteLayout title="Privacy and storage | PlaneDrawer" description="How PlaneDrawer stores your sketch in this browser and how to keep a separate backup.">
+  <article class="document-page frame">
+    <p class="eyebrow caption-3">Privacy and storage</p>
+    <h1 class="heading-1">Your drawing stays with you.</h1>
+    <section><h2 class="heading-5">Saved in this browser</h2><p class="body-3">The editor saves your plan in localStorage for the browser and address you are using. PlaneDrawer does not upload drawing data to a server and does not provide cloud backup.</p></section>
+    <section><h2 class="heading-5">Keep a separate copy</h2><p class="body-3">Export your plan as JSON to keep an editable backup. Clearing browser data, private browsing, changing browsers or moving to another site address can make a saved plan unavailable. A downloaded SVG is a drawing, not an editable backup.</p></section>
+    <section><h2 class="heading-5">When you open this site</h2><p class="body-3">The hosting service receives the requests needed to serve the page and its files. This landing page includes no analytics code or tracking cookies. Fonts are served with the site rather than fetched from a font service in your browser.</p></section>
+    <section><h2 class="heading-5">What you share</h2><p class="body-3">Exported files are saved through your browser. If you send those files to someone else, the drawing and any labels you added are included. Check your file before sharing it.</p></section>
+    <a href={base} class="button button-md">Back to PlaneDrawer</a>
+  </article>
+</SiteLayout>

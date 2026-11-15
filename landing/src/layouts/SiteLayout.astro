@@ -1,0 +1,66 @@
+---
+import '../styles/landing.css';
+import Brand from '../components/Brand.astro';
+import ActionLink from '../components/ActionLink.astro';
+const { title = 'PlaneDrawer | Your home, in view', description = 'Draw the home you know, even without a floor plan. Place familiar details and see your space together. No account needed.', home = false, noindex = false } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const site = Astro.site ?? new URL('https://roby-dev.github.io');
+const canonical = new URL(Astro.url.pathname, site);
+const social = new URL(`${base}social.png`, site);
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#254bff" />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content="You know your space. Put it on paper. A floor plan sketchpad for everyday spaces." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={social} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PlaneDrawer. Your home, in view. A colorful floor plan on electric blue." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link button-sm" href="#main">Skip to content</a>
+    <header class="site-header">
+      <Brand />
+      <nav class="desktop-nav" aria-label="Main navigation">
+        <a class="title-4" href={base} aria-current={home ? 'page' : undefined}>The sketchpad</a>
+        <a class="title-4" href={`${base}#how-it-works`}>How it works</a>
+        <ActionLink class="header-action" size="sm" />
+      </nav>
+      <button class="menu-toggle button-sm" id="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" hidden>
+        <span>Menu</span><span class="menu-lines" aria-hidden="true"><span></span><span></span></span>
+      </button>
+    </header>
+    <dialog id="mobile-menu" class="mobile-menu" aria-label="Main navigation">
+      <div class="menu-heading"><Brand /><button class="menu-toggle button-sm" data-menu-close type="button" aria-label="Close navigation"><span>Close</span><span class="menu-lines is-close" aria-hidden="true"><span></span><span></span></span></button></div>
+      <nav aria-label="Mobile navigation">
+        <a class="heading-3" href={base} aria-current={home ? 'page' : undefined}>The sketchpad</a>
+        <a class="heading-3" href={`${base}#how-it-works`}>How it works</a>
+        <a class="heading-3" href={`${base}#questions`}>Your questions</a>
+        <ActionLink />
+      </nav>
+      <p class="body-6">A familiar place.<br />A fresh point of view.</p>
+    </dialog>
+    <noscript><nav class="fallback-nav frame title-4" aria-label="Page sections"><a href={`${base}#how-it-works`}>How it works</a><a href={`${base}#questions`}>Your questions</a></nav></noscript>
+    <main id="main"><slot /></main>
+    <footer class="site-footer frame">
+      <div><Brand /><p class="caption-5">Your space, on paper.</p></div>
+      <nav aria-label="Footer navigation" class="footer-links caption-4"><a href={`${base}privacy/`} aria-current={Astro.url.pathname.endsWith('/privacy/') ? 'page' : undefined}>Privacy</a><a href={`${base}terms/`} aria-current={Astro.url.pathname.endsWith('/terms/') ? 'page' : undefined}>Usage terms</a><a href="#main">Back to top</a></nav>
+    </footer>
+    <script>
+      import { initializeLanding } from '../scripts/landing.mjs';
+      initializeLanding(document, window);
+    </script>
+  </body>
+</html>

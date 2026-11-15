@@ -1,0 +1,13 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import ActionLink from '../components/ActionLink.astro';
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+<SiteLayout title="Page not found | PlaneDrawer" noindex>
+  <section class="not-found frame">
+    <p class="eyebrow caption-3">404 / A little off the plan</p>
+    <h1 class="heading-1">This room is not on the plan.</h1>
+    <p class="body-3">That page is not here. Return to the landing or start a fresh view of your own space.</p>
+    <div class="error-actions"><a href={base} class="button button-md">Back to the landing</a><ActionLink /></div>
+  </section>
+</SiteLayout>

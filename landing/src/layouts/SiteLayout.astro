@@ -55,7 +55,7 @@ const social = new URL(`${base}social.png`, site);
     <noscript><nav class="fallback-nav frame title-4" aria-label="Page sections"><a href={`${base}#how-it-works`}>How it works</a><a href={`${base}#questions`}>Your questions</a></nav></noscript>
     <main id="main"><slot /></main>
     <footer class="site-footer frame">
-      <div><Brand /><p class="caption-5">Your space, on paper.</p></div>
+      <div><Brand /><p class="caption-5">Your space, on paper.</p><p class="caption-5 credit">Built with <a href="https://github.com/Gentleman-Programming/gentle-ai" rel="noopener">gentle-ai</a> by Gentleman Programming.</p></div>
       <nav aria-label="Footer navigation" class="footer-links caption-4"><a href={`${base}privacy/`} aria-current={Astro.url.pathname.endsWith('/privacy/') ? 'page' : undefined}>Privacy</a><a href={`${base}terms/`} aria-current={Astro.url.pathname.endsWith('/terms/') ? 'page' : undefined}>Usage terms</a><a href="#main">Back to top</a></nav>
     </footer>
     <script>

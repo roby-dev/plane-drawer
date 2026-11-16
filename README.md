@@ -50,6 +50,8 @@ Manrope and its SIL Open Font License are embedded in `style.css`. Phosphor icon
 
 - **Select & move (V):** drag a room to move it as one; drag its corner handles to resize it. Alt+click a wall to select just that wall (then drag it or its endpoints). Rooms also have Width/Height fields in Properties.
 - **Area select (A):** the cursor turns into a crosshair; drag a box to select every wall and symbol fully inside it (selected items turn blue). Drag any of them, with this tool or Select, to move them all together; it undoes in one step. Delete removes the whole selection, Esc clears it, and **Ctrl+A** selects the whole plan.
+- **Copy and paste (Ctrl+C / Ctrl+V):** copies the selected room, wall, symbol or area selection; each paste lands 50 cm further down and right, as new rooms that keep their names, and is selected so you can drag it into place. The copy stays inside the editor (not the system clipboard). Ctrl+drag on an area selection drags a copy of the whole group.
+- **Room area:** while dimensions are shown, each room displays its area in m² under its name, measured to wall centerlines like every other measurement.
 - **Copy (Ctrl+drag):** hold Ctrl while dragging a room, wall or symbol to leave the original in place and drag a copy.
 - **Symbols:** pick one from the left panel (door, window, toilet, sink, shower, kitchen sink, laundry sink, washing machine, garage door, sliding glass door, stairs up, stairs down, car (top view), cold/hot water connection, drain) and click to place; keep clicking to place more. Doors and windows snap onto the nearest wall and open toward the side you click. Otherwise a symbol goes exactly where you put it. To line it up with other symbols and wall corners, hold **left Ctrl + left Alt** while placing or dragging (a purple dashed guide shows the match), so two doors can face each other exactly; the right Alt (AltGr) does not count, and Ctrl+Alt does not copy. Select a symbol to drag it; **Q** rotates it 90°, Delete removes it, Esc finishes.
 - **Rotate and resize with the mouse:** a selected symbol shows handles. Drag the knob above it to rotate (15° steps); drag the side, bottom or corner dot to change its width, depth or both around its center. Its Width and Depth fields in Properties do the same by typing (0.10–20 m); copies keep the size.
@@ -86,3 +88,7 @@ Optional, only if you have Node.js: run `node --test app.test.cjs model.test.cjs
 The scripts are classic (not ES modules) so `index.html` keeps working from a double-click; they share globals and load in the order listed in `index.html`.
 
 The app has no runtime network dependencies and sends no drawing data to a server.
+
+## Credits
+
+Built with [gentle-ai](https://github.com/Gentleman-Programming/gentle-ai) by Gentleman Programming.

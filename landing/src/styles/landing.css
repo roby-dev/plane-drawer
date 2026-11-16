@@ -759,6 +759,14 @@ svg {
   margin-top: var(--spacing-75);
   color: var(--muted);
 }
+.credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-75);
+}
+.credit a:hover {
+  color: var(--blue);
+}
 .footer-links {
   display: flex;
   gap: var(--spacing-300);

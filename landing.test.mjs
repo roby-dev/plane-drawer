@@ -31,7 +31,10 @@ test('every drawing CTA respects the deployment base and points to the real edit
     if (!pathname.endsWith('/')) await readFile(new URL(pathname.slice(base.length), output));
   }
   const canonical = html.match(/rel="canonical" href="([^"]+)"/)?.[1];
-  assert.ok(!assets.some(link => /^https?:\/\//.test(link) && link !== canonical), 'no external runtime assets');
+  // Outbound links the visitor chooses to follow (such as the credit) are not runtime requests.
+  const outbound = new Set([...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map(match => match[1]));
+  assert.deepEqual([...outbound].filter(link => /^https?:\/\//.test(link)), ['https://github.com/Gentleman-Programming/gentle-ai']);
+  assert.ok(!assets.some(link => /^https?:\/\//.test(link) && link !== canonical && !outbound.has(link)), 'no external runtime assets');
 });
 
 test('the published editor is byte-identical to the double-click version and includes only runtime files', async () => {

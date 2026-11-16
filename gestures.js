@@ -108,11 +108,30 @@ function startGesture(e) {
   const start = drawing ? drawingPoint(e) : point(e);
   if (e.button === 1 || state.tool === 'pan') state.gesture = { kind: 'pan', clientX: e.clientX, clientY: e.clientY, camera: { ...state.camera } };
   else if (drawing) state.gesture = { kind: state.tool, start, before: snapshot(), preview: [] };
+  else if (state.tool === 'area') startAreaGesture(e);
   else startSelectGesture(e, start);
   render();
 }
+// Pressing on any item of an area selection moves the whole selection together.
+function startGroupMove(e, start) {
+  const { wall, symbol } = e.target.dataset;
+  if (!inGroup(wall || symbol)) return false;
+  state.gesture = { kind: 'group-move', start, walls: structuredClone(groupWalls()), symbols: structuredClone(groupSymbols()), before: snapshot() };
+  return true;
+}
+// Area tool: drag a box to select everything fully inside it, or drag the current selection.
+function startAreaGesture(e) {
+  if (startGroupMove(e, point(e))) return;
+  select(); renderInspector();
+  const at = point(e, false); state.gesture = { kind: 'marquee', start: at, end: at };
+}
+function finishMarquee(g) {
+  const b = boxOf(g.start, g.end), inside = p => p.x >= b.left && p.x <= b.right && p.y >= b.top && p.y <= b.bottom;
+  selectGroup(state.plan.walls.filter(w => inside(w.a) && inside(w.b)).map(w => w.id), state.plan.symbols.filter(inside).map(s => s.id));
+}
 // Select tool: pick what is under the pointer (Ctrl copies it) and start moving it, or resize from a handle.
 function startSelectGesture(e, start) {
+  if (startGroupMove(e, start)) return;
   const { end, corner, wall: wallId, symbol: symbolId, symbolHandle } = e.target.dataset;
   const onHandle = end !== undefined || corner !== undefined || symbolHandle !== undefined;
   if (symbolHandle && selectedSymbol()) {
@@ -137,6 +156,13 @@ const DRAG = {
     const camera = state.camera;
     camera.x = g.camera.x - (e.clientX - g.clientX) / camera.scale;
     camera.y = g.camera.y - (e.clientY - g.clientY) / camera.scale;
+  },
+  marquee(g, e) { g.end = point(e, false); },
+  'group-move'(g, e) {
+    const p = point(e), delta = { x: p.x - g.start.x, y: p.y - g.start.y };
+    replaceWalls(g.walls.map(o => M.move(o, delta)));
+    const moved = new Map(g.symbols.map(o => [o.id, { ...o, x: M.round(o.x + delta.x), y: M.round(o.y + delta.y) }]));
+    state.plan.symbols = state.plan.symbols.map(s => moved.get(s.id) || s);
   },
   wall(g, e) { g.preview = [M.wall(g.start, wallEnd(e, g))]; },
   rectangle(g, e) { g.preview = M.rectangle(g.start, wallEnd(e, g)); },
@@ -179,7 +205,7 @@ const DRAG = {
     if (M.length(next) >= MIN_WALL) replaceWalls([next]);
   }
 };
-const EDIT_GESTURES = new Set(['move', 'endpoint', 'corner', 'symbol', 'symbol-rotate', 'symbol-resize']);
+const EDIT_GESTURES = new Set(['group-move', 'move', 'endpoint', 'corner', 'symbol', 'symbol-rotate', 'symbol-resize']);
 
 function updateGesture(e) {
   state.lastPointer = { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
@@ -202,6 +228,7 @@ function hover(e) {
 function endGesture(e) {
   const g = state.gesture; if (!g) return;
   state.gesture = null; state.reference = null; state.guides = [];
+  if (g.kind === 'marquee') finishMarquee(g);
   const drew = g.preview?.length > 0;
   if (drew && g.preview.every(w => M.length(w) >= MIN_WALL)) { state.plan.walls.push(...g.preview); select(g.preview[0].id); }
   if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);

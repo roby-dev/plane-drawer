@@ -32,7 +32,7 @@ function drawWall(w, parent, { preview = false, active = false, interactive = !p
   const coords = { x1: w.a.x, y1: w.a.y, x2: w.b.x, y2: w.b.y };
   el('line', { ...coords, stroke: preview || active ? COLORS.accent : COLORS.ink, 'stroke-width': w.thickness, 'stroke-linecap': 'square', opacity: preview ? .65 : 1 }, group);
   if (interactive) {
-    const cursor = isPanning() ? 'grabbing' : state.tool === 'select' ? 'move' : 'inherit';
+    const cursor = isPanning() ? 'grabbing' : state.tool === 'select' || inGroup(w.id) ? 'move' : 'inherit';
     el('line', { ...coords, stroke: 'transparent', 'stroke-width': Math.max(w.thickness, px(18)), cursor }, group).dataset.wall = w.id;
   }
   if ($('dimensions').checked) drawDimension(w, group, active);
@@ -62,8 +62,8 @@ function drawSymbol(sym, parent, { preview = false, interactive = !preview } = {
   SYMBOL_SHAPES[sym.type]((tag, attrs, text) => el(tag, { ...SYMBOL_INK, ...attrs }, shape, text), sym);
   if (!interactive) return;
   const box = symbolBox(sym);
-  if (sym.id === state.selectedSymbolId) el('rect', { ...box, fill: 'none', stroke: COLORS.accent, 'stroke-width': px(2), 'stroke-dasharray': dashes(5, 3), 'pointer-events': 'none' }, g);
-  el('rect', { ...box, fill: 'transparent', cursor: state.tool === 'select' ? 'move' : 'inherit' }, g).dataset.symbol = sym.id;
+  if (sym.id === state.selectedSymbolId || inGroup(sym.id)) el('rect', { ...box, fill: 'none', stroke: COLORS.accent, 'stroke-width': px(2), 'stroke-dasharray': dashes(5, 3), 'pointer-events': 'none' }, g);
+  el('rect', { ...box, fill: 'transparent', cursor: state.tool === 'select' || inGroup(sym.id) ? 'move' : 'inherit' }, g).dataset.symbol = sym.id;
 }
 // Handles on the selected symbol: a knob above it to rotate, and edge/corner dots to resize.
 function drawSymbolHandles(sym) {
@@ -113,12 +113,21 @@ function drawOverlays() {
   gesture?.preview?.forEach(w => drawWall(w, parent, { preview: true }));
   if (reference && !isPanning()) drawReference(reference, parent);
   if (measure && !gesture) drawMeasure(measure, parent);
+  if (gesture?.kind === 'marquee') drawMarquee(gesture, parent);
+}
+const boxOf = (a, b) => ({ left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) });
+// The dashed box being dragged by the area selection tool.
+function drawMarquee({ start, end }, parent) {
+  const b = boxOf(start, end);
+  el('rect', { x: b.left, y: b.top, width: b.right - b.left, height: b.bottom - b.top, fill: COLORS.accent, 'fill-opacity': .08, stroke: COLORS.accent, 'stroke-width': px(1.5), 'stroke-dasharray': dashes(5, 3), 'pointer-events': 'none', 'data-marquee': '' }, parent);
 }
 function renderStatus() {
   const { plan, tool, gesture } = state;
   $('empty').hidden = plan.walls.length > 0 || plan.symbols.length > 0 || tool !== 'select' || !!gesture;
   $('wall-count').textContent = plan.walls.length + (plan.walls.length === 1 ? ' wall' : ' walls');
   $('zoom-level').textContent = Math.round(state.camera.scale / BASE_SCALE * 100) + '%';
+  const count = state.group ? state.group.walls.length + state.group.symbols.length : 0;
+  $('hint').textContent = count ? count + (count === 1 ? ' item' : ' items') + ' selected. Drag any of them to move them all; Delete removes them; Esc clears.' : TOOL_HINTS[tool];
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
 }
 function render() {
@@ -129,7 +138,7 @@ function render() {
   Object.entries({ x: camera.x, y: camera.y, width, height }).forEach(([k, v]) => $('paper').setAttribute(k, v));
   ['walls', 'symbols', 'labels', 'handles', 'preview'].forEach(id => $(id).replaceChildren());
   const group = selectedWalls(), sym = selectedSymbol();
-  drawPlan({ walls: $('walls'), symbols: $('symbols'), labels: $('labels') }, { selection: group });
+  drawPlan({ walls: $('walls'), symbols: $('symbols'), labels: $('labels') }, { selection: [...group, ...groupWalls()] });
   drawHandles(group);
   if (sym && state.tool === 'select') drawSymbolHandles(sym);
   drawOverlays();

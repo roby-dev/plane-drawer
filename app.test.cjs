@@ -28,7 +28,7 @@ function loadApp() {
   }
   const elements = new Map();
   const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
-  const tools = ['select', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
+  const tools = ['select', 'area', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
   const storage = new Map(), docListeners = {}, downloads = [];
   const markup = node => '<' + node.tagName + Object.entries(node.attrs).map(([k, v]) => ' ' + k + '="' + v + '"').join('') + '>' + (node.textContent ?? node.children.map(markup).join('')) + '</' + node.tagName + '>';
   const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: tag => Object.assign(new Element(), { tagName: tag }), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
@@ -560,4 +560,44 @@ test('every catalog symbol can be placed, inspected and deselected without chang
     assert.equal(app.get('inspector').hidden, true);
     assert.equal(app.storage.get('planedrawer.plan.v1'), before);
   }
+});
+
+test('area select picks only what is fully inside the box and drags it all as one undoable step', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  pick(app, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  app.tool('wall'); canvas.fire('pointerdown', { clientX: 440, clientY: 110 }); canvas.fire('pointermove', { clientX: 440, clientY: 275 }); canvas.fire('pointerup');
+  const before = stored(app);
+  app.tool('area');
+  assert.equal(app.active('area'), 'true');
+  assert.equal(canvas.style.cursor, 'crosshair');
+  canvas.fire('pointerdown', { clientX: 100, clientY: 100 }); canvas.fire('pointermove', { clientX: 340, clientY: 290 });
+  assert.equal(app.get('preview').children.filter(c => c.attrs['data-marquee'] !== undefined).length, 1);
+  canvas.fire('pointerup');
+  assert.match(app.get('hint').textContent, /^5 items selected/);
+  const room = before.walls.filter(w => w.room), outside = before.walls.find(w => !w.room), toilet = before.symbols[0];
+  canvas.fire('pointerdown', { clientX: 110, clientY: 110, target: { dataset: { wall: room[0].id } } });
+  canvas.fire('pointermove', { clientX: 165, clientY: 165 }); canvas.fire('pointerup');
+  const after = stored(app);
+  for (const w of room) {
+    const moved = after.walls.find(x => x.id === w.id);
+    assert.deepEqual([moved.a, moved.b], [{ x: w.a.x + 1, y: w.a.y + 1 }, { x: w.b.x + 1, y: w.b.y + 1 }]);
+  }
+  assert.deepEqual(after.walls.find(w => w.id === outside.id), outside);
+  assert.deepEqual([after.symbols[0].x, after.symbols[0].y], [toilet.x + 1, toilet.y + 1]);
+  app.key('keydown', { key: 'z', ctrlKey: true });
+  assert.deepEqual(stored(app), before);
+});
+
+test('Ctrl+A selects the whole plan, Delete removes it in one step and Esc clears the selection', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  pick(app, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  app.tool('select');
+  app.key('keydown', { key: 'a', ctrlKey: true });
+  assert.match(app.get('hint').textContent, /^5 items selected/);
+  app.key('keydown', { key: 'Escape' });
+  assert.doesNotMatch(app.get('hint').textContent, /items selected/);
+  app.key('keydown', { key: 'a', ctrlKey: true }); app.key('keydown', { key: 'Delete' });
+  assert.deepEqual([stored(app).walls.length, stored(app).symbols.length], [0, 0]);
+  app.key('keydown', { key: 'z', ctrlKey: true });
+  assert.deepEqual([stored(app).walls.length, stored(app).symbols.length], [4, 1]);
 });

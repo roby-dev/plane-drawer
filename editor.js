@@ -19,6 +19,8 @@ const state = {
   selectedWallId: null,
   selectedSymbolId: null,
   single: false,
+  // Area selection: several walls and symbols picked together (null when not in use).
+  group: null,
   // Pointer interaction and the overlays it shows.
   gesture: null,
   lastPointer: null,
@@ -38,8 +40,17 @@ const snapshot = () => JSON.stringify(state.plan);
 const isDrawingTool = tool => tool === 'wall' || tool === 'rectangle';
 
 function select(wallId = null, symbolId = null, single = false) {
-  state.selectedWallId = wallId; state.selectedSymbolId = symbolId; state.single = single;
+  state.selectedWallId = wallId; state.selectedSymbolId = symbolId; state.single = single; state.group = null;
 }
+// Selects several walls and symbols at once; an empty pick clears the selection.
+function selectGroup(wallIds, symbolIds) {
+  select();
+  if (wallIds.length || symbolIds.length) state.group = { walls: wallIds, symbols: symbolIds };
+}
+const selectAll = () => selectGroup(state.plan.walls.map(w => w.id), state.plan.symbols.map(s => s.id));
+const groupWalls = () => state.group ? state.plan.walls.filter(w => state.group.walls.includes(w.id)) : [];
+const groupSymbols = () => state.group ? state.plan.symbols.filter(s => state.group.symbols.includes(s.id)) : [];
+const inGroup = id => !!id && !!state.group && (state.group.walls.includes(id) || state.group.symbols.includes(id));
 // The selected wall, or its whole room unless a single wall was picked with Alt.
 function selectedWalls() {
   const { plan, selectedWallId, single } = state;
@@ -92,13 +103,21 @@ function replacePlan(next) {
 }
 function removeSelected() {
   const before = snapshot(), { plan } = state;
+  if (state.group) {
+    const walls = new Set(state.group.walls), symbols = new Set(state.group.symbols);
+    plan.walls = plan.walls.filter(w => !walls.has(w.id)); plan.symbols = plan.symbols.filter(s => !symbols.has(s.id));
+    forgetEmptyRooms(); select(); commit(before); return;
+  }
   if (state.selectedSymbolId) { plan.symbols = plan.symbols.filter(x => x.id !== state.selectedSymbolId); select(); commit(before); return; }
   if (!state.selectedWallId) return;
   const ids = new Set(selectedWalls().map(w => w.id));
   plan.walls = plan.walls.filter(w => !ids.has(w.id));
-  // Forget the names of rooms that no longer have walls.
+  forgetEmptyRooms(); select(); commit(before);
+}
+// Forget the names of rooms that no longer have walls.
+function forgetEmptyRooms() {
+  const { plan } = state;
   for (const room of Object.keys(plan.rooms)) if (!plan.walls.some(w => w.room === room)) delete plan.rooms[room];
-  select(); commit(before);
 }
 function rotateSelected() {
   const sym = selectedSymbol(); if (!sym) return;

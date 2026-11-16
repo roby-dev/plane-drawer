@@ -2,12 +2,13 @@
 // Toolbar, symbol palette, inspector forms, file import/export, keyboard shortcuts and startup.
 const TOOL_HINTS = {
   select: 'Drag a room to move it, its corners to resize. Ctrl+drag copies. Alt+click picks a single wall. Hold Ctrl over a corner and slide along a wall to measure. A selected symbol has handles to rotate and resize it; hold left Ctrl + left Alt to line it up.',
+  area: 'Drag a box to select every wall and symbol fully inside it, then drag any of them to move them all. Ctrl+A selects everything.',
   rectangle: 'Drag to draw a room. Orange marks snap to existing walls.',
   wall: 'Drag to draw. Orange marks snap to walls; Shift aligns free lines.',
   pan: 'Drag to pan. Hold the middle mouse button from any tool.',
   symbol: 'Click to place. Doors and windows snap onto walls (click on the side they should open). Hold left Ctrl + left Alt to line up with other symbols and corners (purple lines). Q rotates, Esc finishes.'
 };
-const TOOL_KEYS = { v: 'select', r: 'rectangle', w: 'wall', h: 'pan' };
+const TOOL_KEYS = { a: 'area', v: 'select', r: 'rectangle', w: 'wall', h: 'pan' };
 const palette = [];
 
 function setLibraryOpen(open) {
@@ -133,6 +134,7 @@ document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
   if (e.key === 'Escape') { cancelGesture(); select(); setTool('select'); renderInspector(); }
   if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(key)) { e.preventDefault(); undo(key === 'y' || e.shiftKey); return; }
+  if ((e.ctrlKey || e.metaKey) && key === 'a') { e.preventDefault(); cancelGesture(); selectAll(); renderInspector(); render(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSelected(); }
   if (key === 'q') rotateSelected();

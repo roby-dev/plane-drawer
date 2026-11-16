@@ -3,12 +3,14 @@
 const TOOL_HINTS = {
   select: 'Drag a room to move it, its corners to resize. Ctrl+drag copies. Alt+click picks a single wall. Hold Ctrl over a corner and slide along a wall to measure. A selected symbol has handles to rotate and resize it; hold left Ctrl + left Alt to line it up.',
   area: 'Drag a box to select every wall and symbol fully inside it, then drag any of them to move them all. Ctrl+A selects everything.',
+  calibrate: 'Set scale: click two points on the image whose real distance you know, such as both ends of a wall. Esc cancels.',
   rectangle: 'Drag to draw a room. Orange marks snap to existing walls.',
   wall: 'Drag to draw. Orange marks snap to walls; Shift aligns free lines.',
   pan: 'Drag to pan. Hold the middle mouse button from any tool.',
   symbol: 'Click to place. Doors and windows snap onto walls (click on the side they should open). Hold left Ctrl + left Alt to line up with other symbols and corners (purple lines). Q rotates, Esc finishes.'
 };
-const TOOL_KEYS = { a: 'area', v: 'select', r: 'rectangle', w: 'wall', h: 'pan' };
+const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+const TOOL_KEYS ={ a: 'area', v: 'select', r: 'rectangle', w: 'wall', h: 'pan' };
 const palette = [];
 
 function setLibraryOpen(open) {
@@ -17,7 +19,7 @@ function setLibraryOpen(open) {
 }
 
 function setTool(next) {
-  cancelGesture(); state.tool = next; state.ghost = null; state.guides = [];
+  cancelGesture(); state.tool = next; state.ghost = null; state.guides = []; state.calibration = null;
   setLibraryOpen(false);
   $('toggle-symbols').classList.toggle('is-active', next === 'symbol');
   palette.forEach(b => { const active = next === 'symbol' && b.dataset.symbol === state.symbolType; b.classList.toggle('is-active', active); b.setAttribute('aria-pressed', active); });
@@ -128,6 +130,34 @@ $('import-file').onchange = async () => {
   finally { $('import-file').value = ''; }
 };
 
+// Reference image to trace over
+const readDataUrl = file => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
+const imageAspect = src => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img.naturalHeight / img.naturalWidth); img.onerror = reject; img.src = src; });
+function renderBackdropControls() {
+  $('backdrop-controls').hidden = !state.backdrop;
+  $('backdrop-add-label').textContent = state.backdrop ? 'Replace image' : 'Add image to trace';
+  if (state.backdrop) $('backdrop-opacity').value = state.backdrop.opacity;
+}
+$('backdrop-add').onclick = () => $('backdrop-file').click();
+$('backdrop-file').onchange = async () => {
+  const file = $('backdrop-file').files[0]; if (!file) return;
+  try {
+    if (file.size > 4_000_000) { notify('Choose an image under 4 MB, so this browser can keep it.'); return; }
+    const src = await readDataUrl(file), aspect = await imageAspect(src);
+    // Start at 80% of the visible width; Set scale then makes it match real meters.
+    const camera = state.camera, viewWidth = svg.clientWidth / camera.scale, viewHeight = svg.clientHeight / camera.scale;
+    const width = viewWidth * .8, backdrop = validBackdrop({ src, x: camera.x + viewWidth * .1, y: camera.y + Math.max(0, (viewHeight - width * aspect) / 2), width, aspect, opacity: .5 });
+    if (!backdrop) throw new Error('Unsupported image');
+    state.backdrop = backdrop; const stored = saveBackdrop(); renderBackdropControls(); render();
+    $('file-menu').open = false;
+    if (stored) notify('Image added. Use Files → Set scale and click two points whose real distance you know.');
+  } catch { notify('This image could not be opened. Use a PNG, JPEG or WebP file.'); }
+  finally { $('backdrop-file').value = ''; }
+};
+$('backdrop-scale').onclick = () => { $('file-menu').open = false; setTool('calibrate'); svg.focus({ preventScroll: true }); };
+$('backdrop-opacity').oninput = () => { if (!state.backdrop) return; state.backdrop.opacity = +$('backdrop-opacity').value; saveBackdrop(); render(); };
+$('backdrop-remove').onclick = () => { state.backdrop = null; saveBackdrop(); renderBackdropControls(); if (state.tool === 'calibrate') setTool('select'); render(); };
+
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -138,13 +168,19 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && key === 'v') { e.preventDefault(); cancelGesture(); paste(); return; }
   if ((e.ctrlKey || e.metaKey) && key === 'a') { e.preventDefault(); cancelGesture(); selectAll(); renderInspector(); render(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const arrow = ARROWS[e.key];
+  if (arrow && !state.gesture) {
+    const step = e.shiftKey ? .01 : .1;
+    if (nudge(arrow[0] * step, arrow[1] * step)) e.preventDefault();
+    return;
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSelected(); }
   if (key === 'q') rotateSelected();
   if (TOOL_KEYS[key]) setTool(TOOL_KEYS[key]);
 });
 
 // Startup
-loadStoredPlan();
+loadStoredPlan(); loadBackdrop(); renderBackdropControls();
 $('plan-name').value = state.plan.name;
 new ResizeObserver(() => render()).observe($('drawing'));
 renderInspector(); render(); if (state.plan.walls.length) fit();

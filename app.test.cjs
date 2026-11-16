@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const model = require('./model.js');
 
-function loadApp() {
+function loadApp(extra = {}) {
   class Element {
     constructor() {
       this.attrs = {}; this.dataset = {}; this.style = {}; this.listeners = {}; this.children = []; this.checked = true; this.clientWidth = 800; this.clientHeight = 600;
@@ -29,9 +29,9 @@ function loadApp() {
   const elements = new Map();
   const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const tools = ['select', 'area', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
-  const storage = new Map(), docListeners = {}, downloads = [];
+  const storage = new Map(extra.seed || []), docListeners = {}, downloads = [];
   const markup = node => '<' + node.tagName + Object.entries(node.attrs).map(([k, v]) => ' ' + k + '="' + v + '"').join('') + '>' + (node.textContent ?? node.children.map(markup).join('')) + '</' + node.tagName + '>';
-  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: tag => Object.assign(new Element(), { tagName: tag }), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } } };
+  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => { if (extra.storageLimit && value.length > extra.storageLimit) throw new Error("QuotaExceededError"); storage.set(key, value); }, removeItem: key => storage.delete(key) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: tag => Object.assign(new Element(), { tagName: tag }), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } }, ...extra.globals };
   // Run the app scripts in index.html order, sharing one global scope like the browser does (model.js is injected above).
   vm.createContext(context);
   const scripts = [...fs.readFileSync(require.resolve('./index.html'), 'utf8').matchAll(/<script defer src="([^"]+)">/g)].map(m => m[1]).filter(src => src !== 'model.js');
@@ -649,4 +649,116 @@ test('Ctrl+drag on an area selection drags a copy and leaves the original; a Ctr
   assert.equal(after.walls.length, 8);
   assert.deepEqual(after.walls.slice(0, 4), before.walls);
   assert.deepEqual(after.walls.slice(4).map(w => w.a.x - 5), before.walls.map(w => w.a.x));
+});
+
+test('the status bar shows the total area of every room and hides it when there are none', () => {
+  const app = loadApp(), canvas = app.get('canvas');
+  assert.equal(app.get('total-area').hidden, true);
+  drawRoom(app);
+  app.tool('rectangle'); canvas.fire('pointerdown', { clientX: 440, clientY: 110 }); canvas.fire('pointermove', { clientX: 550, clientY: 220 }); canvas.fire('pointerup');
+  assert.equal(app.get('total-area').hidden, false);
+  assert.equal(app.get('total-area').textContent, 'Rooms 16.00 m²');
+  app.key('keydown', { key: 'a', ctrlKey: true }); app.key('keydown', { key: 'Delete' });
+  assert.equal(app.get('total-area').hidden, true);
+});
+
+test('arrow keys move the selection 10 cm (1 cm with Shift), one undo step each, and do nothing without a selection', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  pick(app, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  app.tool('select'); app.key('keydown', { key: 'Escape' });
+  const start = stored(app), unselected = { key: 'ArrowRight', defaultPrevented: false };
+  app.key('keydown', unselected);
+  assert.deepEqual(stored(app), start);
+  const id = start.symbols[0].id;
+  canvas.fire('pointerdown', { clientX: 220, clientY: 200, target: { dataset: { symbol: id } } }); canvas.fire('pointerup', { clientX: 220, clientY: 200 });
+  app.key('keydown', { key: 'ArrowRight' }); app.key('keydown', { key: 'ArrowUp', shiftKey: true });
+  assert.deepEqual([stored(app).symbols[0].x, stored(app).symbols[0].y], [2.1, 1.59]);
+  assert.deepEqual(stored(app).walls, start.walls);
+  app.key('keydown', { key: 'a', ctrlKey: true }); app.key('keydown', { key: 'ArrowLeft' });
+  const moved = stored(app);
+  assert.deepEqual(moved.walls.map(w => [w.a.x, w.a.y]), start.walls.map(w => [M(w.a.x - .1), w.a.y]));
+  assert.equal(moved.symbols[0].x, 2);
+  for (let i = 0; i < 3; i++) app.key('keydown', { key: 'z', ctrlKey: true });
+  assert.deepEqual(stored(app), start);
+});
+const M = n => Math.round(n * 100) / 100;
+
+// A browser-like file and image pipeline: every image is 200 × 100 px.
+const imageGlobals = (answers = []) => ({
+  FileReader: class { readAsDataURL(file) { this.result = file.dataUrl; queueMicrotask(() => this.onload()); } },
+  Image: class { set src(value) { this.naturalWidth = 200; this.naturalHeight = 100; queueMicrotask(() => this.onload()); } },
+  prompt: () => answers.shift() ?? null,
+  confirm: () => true
+});
+const PNG = 'data:image/png;base64,' + 'A'.repeat(1000);
+async function addImage(app, file = { size: 1000, dataUrl: PNG }) {
+  app.get('backdrop-file').files = [file];
+  await app.get('backdrop-file').onchange();
+}
+const backdropImage = app => app.get('backdrop').children.find(c => c.tagName === 'image');
+
+test('a reference image is drawn under the plan, scaled from two points and a real distance, and kept in this browser only', async () => {
+  const app = loadApp({ globals: imageGlobals(['4']) }), canvas = app.get('canvas'); drawRoom(app);
+  assert.equal(app.get('backdrop-controls').hidden, true);
+  await addImage(app);
+  assert.equal(app.get('backdrop-controls').hidden, false);
+  assert.equal(app.get('backdrop-add-label').textContent, 'Replace image');
+  const first = JSON.parse(app.storage.get('planedrawer.backdrop.v1'));
+  assert.equal(first.src, PNG); assert.equal(first.aspect, .5); assert.equal(first.opacity, .5);
+  assert.equal(backdropImage(app).attrs['pointer-events'], 'none');
+  assert.equal(backdropImage(app).attrs.height, String(first.width / 2));
+  const plan = app.storage.get('planedrawer.plan.v1');
+  app.get('backdrop-scale').onclick();
+  assert.match(app.get('hint').textContent, /^Set scale/);
+  canvas.fire('pointerdown', { clientX: 110, clientY: 110 });
+  canvas.fire('pointermove', { clientX: 220, clientY: 110 });
+  assert.ok(app.get('preview').children.some(c => c.tagName === 'line'));
+  canvas.fire('pointerdown', { clientX: 220, clientY: 110 });
+  const scaled = JSON.parse(app.storage.get('planedrawer.backdrop.v1'));
+  assert.ok(Math.abs(scaled.width - first.width * 2) < 1e-9);
+  assert.ok(Math.abs(scaled.x - first.x * 2) < 1e-9 && Math.abs(scaled.y - first.y * 2) < 1e-9);
+  assert.equal(app.active('select'), 'true');
+  assert.equal(app.storage.get('planedrawer.plan.v1'), plan);
+  app.get('backdrop-opacity').value = '0.8'; app.get('backdrop-opacity').oninput();
+  assert.equal(backdropImage(app).attrs.opacity, '0.8');
+  app.get('export').onclick(); app.get('export-svg').onclick();
+  assert.ok(app.downloads.every(d => !d.text.includes('data:image') && !d.text.includes('<image')));
+  const reloaded = loadApp({ seed: app.storage });
+  assert.equal(backdropImage(reloaded).attrs.opacity, '0.8');
+  app.get('backdrop-remove').onclick();
+  assert.equal(app.storage.has('planedrawer.backdrop.v1'), false);
+  assert.equal(backdropImage(app), undefined);
+  assert.equal(app.get('backdrop-controls').hidden, true);
+});
+
+test('Set scale changes nothing when canceled or given an invalid distance', async () => {
+  const app = loadApp({ globals: imageGlobals([null, '0']) }), canvas = app.get('canvas');
+  await addImage(app);
+  const before = app.storage.get('planedrawer.backdrop.v1');
+  for (const expected of [undefined, /between 0.10 and 1000/]) {
+    app.get('backdrop-scale').onclick();
+    canvas.fire('pointerdown', { clientX: 110, clientY: 110 }); canvas.fire('pointerdown', { clientX: 220, clientY: 110 });
+    assert.equal(app.storage.get('planedrawer.backdrop.v1'), before);
+    if (expected) assert.match(app.get('message').textContent, expected);
+  }
+  app.get('backdrop-scale').onclick(); canvas.fire('pointerdown', { clientX: 110, clientY: 110 });
+  app.key('keydown', { key: 'Escape' });
+  assert.equal(app.active('select'), 'true');
+  assert.equal(app.storage.get('planedrawer.backdrop.v1'), before);
+});
+
+test('reference images that are too large, unsupported or corrupt are refused without breaking the editor', async () => {
+  const app = loadApp({ globals: imageGlobals() });
+  await addImage(app, { size: 5_000_000, dataUrl: PNG });
+  assert.match(app.get('message').textContent, /under 4 MB/);
+  await addImage(app, { size: 100, dataUrl: 'data:text/html;base64,PHNjcmlwdD4=' });
+  assert.match(app.get('message').textContent, /could not be opened/);
+  assert.equal(backdropImage(app), undefined);
+  const full = loadApp({ globals: imageGlobals(), storageLimit: 500 });
+  await addImage(full);
+  assert.match(full.get('message').textContent, /too large to keep/);
+  assert.ok(backdropImage(full));
+  const corrupt = loadApp({ seed: [['planedrawer.backdrop.v1', JSON.stringify({ src: 'javascript:alert(1)', x: 0, y: 0, width: 1, aspect: 1, opacity: .5 })]] });
+  assert.equal(backdropImage(corrupt), undefined);
+  assert.equal(corrupt.get('backdrop-controls').hidden, true);
 });

@@ -66,7 +66,7 @@ SOFTWARE.
       <span id="save-state" class="caption-5" role="status">Stored on this device</span>
     </div>
     <div class="header-actions">
-      <details class="file-menu">
+      <details id="file-menu" class="file-menu">
         <summary class="button-sm"><svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg><span>Files</span><svg class="icon chevron" aria-hidden="true"><use href="#icon-caret-down" /></svg></summary>
         <div class="file-actions">
           <p class="caption-3">Your workspace</p>
@@ -74,6 +74,15 @@ SOFTWARE.
           <input type="file" id="import-file" accept=".json,application/json" hidden>
           <button id="clear" class="btn button-sm" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-file-plus" /></svg>New plan</button>
           <p class="caption-5">Export a JSON copy to keep a backup or move your plan to another device.</p>
+          <p class="caption-3">Reference image</p>
+          <button id="backdrop-add" class="btn button-sm" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-upload-simple" /></svg><span id="backdrop-add-label">Add image to trace</span></button>
+          <input type="file" id="backdrop-file" accept="image/png,image/jpeg,image/webp" hidden>
+          <div id="backdrop-controls" class="backdrop-controls" hidden>
+            <button id="backdrop-scale" class="btn button-sm" type="button">Set scale</button>
+            <label class="caption-5" for="backdrop-opacity">Opacity <input id="backdrop-opacity" type="range" min="0.1" max="1" step="0.05" value="0.5"></label>
+            <button id="backdrop-remove" class="btn button-sm" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>Remove image</button>
+          </div>
+          <p class="caption-5">The image stays in this browser only. It is not part of exported plans.</p>
         </div>
       </details>
       <button id="export-svg" class="btn button-sm" title="Download the drawing as SVG" aria-label="Export SVG drawing"><svg class="icon" aria-hidden="true"><use href="#icon-download-simple" /></svg><span class="action-text">Export SVG</span></button>
@@ -111,12 +120,12 @@ SOFTWARE.
       <div id="drawing">
         <svg id="canvas" tabindex="0" aria-label="Drawing canvas. Choose Room or Wall, then drag to draw." xmlns="http://www.w3.org/2000/svg">
           <defs><pattern id="grid" width="0.1" height="0.1" patternUnits="userSpaceOnUse"><path d="M .1 0 H 0 V .1" fill="none" stroke="#e8e9e2" stroke-width=".008"/></pattern><pattern id="major-grid" width="1" height="1" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="url(#grid)"/><path d="M 1 0 H 0 V 1" fill="none" stroke="#d7dbd0" stroke-width=".012"/></pattern></defs>
-          <rect id="paper" fill="url(#major-grid)"/><g id="walls"></g><g id="symbols"></g><g id="labels"></g><g id="preview"></g><g id="handles"></g>
+          <rect id="paper" fill="url(#major-grid)"/><g id="backdrop"></g><g id="walls"></g><g id="symbols"></g><g id="labels"></g><g id="preview"></g><g id="handles"></g>
         </svg>
         <div id="empty" class="empty-canvas"><span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 80 64"><path d="M8 56V8h64v48H47M31 56H8m39 0V40a16 16 0 0 0-16 16" /></svg></span><h2 class="heading-5">Start with one room.</h2><p class="body-6">Choose Room and drag to sketch the walls.<br />Add the details that make it your place.</p><button id="start" class="btn btn-primary button-md">Draw my first room</button><button id="example" class="btn btn-link button-sm">Try a sample plan</button></div>
         <div class="zoom"><button id="zoom-out" class="btn btn-ghost button-sm" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="#icon-minus" /></svg></button><output id="zoom-level" class="caption-4">100%</output><button id="zoom-in" class="btn btn-ghost button-sm" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg></button></div>
       </div>
-      <footer class="status-bar caption-5"><span id="hint">Select a wall to move it or edit its dimensions.</span><span id="wall-count">0 walls</span><span>Meters</span></footer>
+      <footer class="status-bar caption-5"><span id="hint">Select a wall to move it or edit its dimensions.</span><span id="total-area" title="Sum of every room's area, measured to wall centerlines" hidden></span><span id="wall-count">0 walls</span><span>Meters</span></footer>
     </section>
     <aside id="inspector" class="inspector" aria-label="Selection properties" hidden>
       <div class="inspector-heading"><div><p class="eyebrow caption-3">Properties</p><h2 id="selection-title" class="heading-6" aria-live="polite">Your floor plan</h2></div><button id="close-inspector" class="btn btn-ghost button-sm" type="button" aria-label="Close properties"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>

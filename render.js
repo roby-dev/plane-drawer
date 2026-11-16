@@ -82,14 +82,20 @@ function drawHandles(group) {
   if (group.length === 4) M.roomCorners(group).forEach((p, i) => { handle(p, 7, i % 2 ? 'nesw-resize' : 'nwse-resize').dataset.corner = i; });
   else if (group.length) ['a', 'b'].forEach(end => { handle(group[0][end], 6, isPanning() ? 'grabbing' : 'crosshair').dataset.end = end; });
 }
-// Each room's name and, while dimensions are shown, its area (measured to wall centerlines), centered in it.
-function drawRoomLabels(parent) {
+// Every complete room (four walls) with its bounds and its area in m², measured to wall centerlines.
+function roomAreas() {
   const rooms = new Map();
   state.plan.walls.forEach(w => { if (w.room) rooms.set(w.room, [...(rooms.get(w.room) || []), w]); });
-  for (const [room, walls] of rooms) {
-    if (walls.length !== 4) continue;
-    const b = M.roomBounds(walls), x = (b.left + b.right) / 2, y = (b.top + b.bottom) / 2, name = state.plan.rooms[room];
-    const area = $('dimensions').checked ? ((b.right - b.left) * (b.bottom - b.top)).toFixed(2) + ' m²' : null;
+  return [...rooms].filter(([, walls]) => walls.length === 4).map(([room, walls]) => {
+    const b = M.roomBounds(walls);
+    return { room, b, area: (b.right - b.left) * (b.bottom - b.top) };
+  });
+}
+// Each room's name and, while dimensions are shown, its area (measured to wall centerlines), centered in it.
+function drawRoomLabels(parent) {
+  for (const { room, b, area: size } of roomAreas()) {
+    const x = (b.left + b.right) / 2, y = (b.top + b.bottom) / 2, name = state.plan.rooms[room];
+    const area = $('dimensions').checked ? size.toFixed(2) + ' m²' : null;
     const label = (dy, attrs, text) => el('text', { x, y: y + dy, 'font-family': FONT, 'text-anchor': 'middle', 'dominant-baseline': 'central', ...halo(5), 'pointer-events': 'none', ...attrs }, parent, text);
     if (name) label(0, { fill: COLORS.ink, 'font-size': px(14), 'font-weight': 600 }, name);
     if (area) label(name ? px(16) : 0, { fill: COLORS.dimension, 'font-size': px(12) }, area);
@@ -118,6 +124,17 @@ function drawOverlays() {
   if (reference && !isPanning()) drawReference(reference, parent);
   if (measure && !gesture) drawMeasure(measure, parent);
   if (gesture?.kind === 'marquee') drawMarquee(gesture, parent);
+  if (tool === 'calibrate' && state.calibration) drawCalibration(state.calibration, parent);
+}
+// The reference image under the plan; it never takes pointer events, so drawing on top works as usual.
+function drawBackdrop() {
+  const b = state.backdrop; if (!b) return;
+  el('image', { href: b.src, x: b.x, y: b.y, width: b.width, height: b.width * b.aspect, opacity: b.opacity, preserveAspectRatio: 'none', 'pointer-events': 'none' }, $('backdrop'));
+}
+// Set scale: a line from the first point picked to the pointer, with its current length on the image.
+function drawCalibration({ first, end }, parent) {
+  el('line', { x1: first.x, y1: first.y, x2: end.x, y2: end.y, stroke: COLORS.measure, 'stroke-width': px(2), 'stroke-dasharray': dashes(6, 4), 'pointer-events': 'none' }, parent);
+  [first, end].forEach(p => el('circle', { cx: p.x, cy: p.y, r: px(5), fill: COLORS.measure, 'pointer-events': 'none' }, parent));
 }
 const boxOf = (a, b) => ({ left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) });
 // The dashed box being dragged by the area selection tool.
@@ -127,8 +144,10 @@ function drawMarquee({ start, end }, parent) {
 }
 function renderStatus() {
   const { plan, tool, gesture } = state;
-  $('empty').hidden = plan.walls.length > 0 || plan.symbols.length > 0 || tool !== 'select' || !!gesture;
+  $('empty').hidden = plan.walls.length > 0 || plan.symbols.length > 0 || !!state.backdrop || tool !== 'select' || !!gesture;
   $('wall-count').textContent = plan.walls.length + (plan.walls.length === 1 ? ' wall' : ' walls');
+  const total = roomAreas().reduce((sum, r) => sum + r.area, 0);
+  $('total-area').hidden = !total; $('total-area').textContent = 'Rooms ' + total.toFixed(2) + ' m²';
   $('zoom-level').textContent = Math.round(state.camera.scale / BASE_SCALE * 100) + '%';
   const count = state.group ? state.group.walls.length + state.group.symbols.length : 0;
   $('hint').textContent = count ? count + (count === 1 ? ' item' : ' items') + ' selected. Drag any of them to move them all; Delete removes them; Esc clears.' : TOOL_HINTS[tool];
@@ -140,7 +159,8 @@ function render() {
   const width = svg.clientWidth / camera.scale, height = svg.clientHeight / camera.scale;
   svg.setAttribute('viewBox', [camera.x, camera.y, width, height].join(' '));
   Object.entries({ x: camera.x, y: camera.y, width, height }).forEach(([k, v]) => $('paper').setAttribute(k, v));
-  ['walls', 'symbols', 'labels', 'handles', 'preview'].forEach(id => $(id).replaceChildren());
+  ['backdrop', 'walls', 'symbols', 'labels', 'handles', 'preview'].forEach(id => $(id).replaceChildren());
+  drawBackdrop();
   const group = selectedWalls(), sym = selectedSymbol();
   drawPlan({ walls: $('walls'), symbols: $('symbols'), labels: $('labels') }, { selection: [...group, ...groupWalls()] });
   drawHandles(group);

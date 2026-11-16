@@ -5,6 +5,7 @@
 const M = PlanModel;
 const $ = id => document.getElementById(id);
 const STORAGE_KEY = 'planedrawer.plan.v1';
+const BACKDROP_KEY = 'planedrawer.backdrop.v1';
 const HISTORY_LIMIT = 100;
 const BASE_SCALE = 55; // screen pixels per meter at 100% zoom
 const newPlan = () => ({ name: 'Untitled plan', walls: [], symbols: [], rooms: {} });
@@ -21,6 +22,10 @@ const state = {
   single: false,
   // Area selection: several walls and symbols picked together (null when not in use).
   group: null,
+  // Image to trace over: { src, x, y, width, aspect, opacity } in meters. Kept apart from the plan, in this browser only.
+  backdrop: null,
+  // Set scale: the first point picked and where the pointer is now.
+  calibration: null,
   // Ctrl+C copy kept inside the editor, and how many times it has been pasted.
   clipboard: null,
   pastes: 0,
@@ -55,9 +60,26 @@ const groupWalls = () => state.group ? state.plan.walls.filter(w => state.group.
 const groupSymbols = () => state.group ? state.plan.symbols.filter(s => state.group.symbols.includes(s.id)) : [];
 // Fresh copies of the current selection (area group, room or wall, or symbol), keeping room names.
 function selectionCopies() {
-  const walls = state.group ? groupWalls() : selectedWalls();
-  const symbols = state.group ? groupSymbols() : [selectedSymbol()].filter(Boolean);
+  const { walls, symbols } = selectionItems();
   return copyItems(walls, symbols, state.plan.rooms, 0);
+}
+// Every selected wall and symbol, whichever way they were selected.
+function selectionItems() {
+  if (state.group) return { walls: groupWalls(), symbols: groupSymbols() };
+  return { walls: selectedWalls(), symbols: [selectedSymbol()].filter(Boolean) };
+}
+// Puts `walls` and `symbols` (as they were before moving) at `delta` from where they were.
+function moveItems(walls, symbols, delta) {
+  replaceWalls(walls.map(o => M.move(o, delta)));
+  const moved = new Map(symbols.map(o => [o.id, { ...o, x: M.round(o.x + delta.x), y: M.round(o.y + delta.y) }]));
+  state.plan.symbols = state.plan.symbols.map(s => moved.get(s.id) || s);
+}
+// Arrow keys: move the selection by a fixed step, one undo step per press.
+function nudge(dx, dy) {
+  const { walls, symbols } = selectionItems();
+  if (!walls.length && !symbols.length) return false;
+  const before = snapshot(); moveItems(walls, symbols, { x: dx, y: dy }); commit(before);
+  return true;
 }
 function copyItems(walls, symbols, names, shift) {
   const copies = M.duplicateWalls(walls).map(w => shift ? M.move(w, { x: shift, y: shift }) : w), rooms = {};
@@ -111,6 +133,29 @@ function save() {
 function loadStoredPlan() {
   try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state.plan = M.decode(raw); }
   catch { state.blockedStorage = true; $('save-state').textContent = 'Not saved — storage unavailable'; notify('Stored data could not be loaded. It has not been overwritten. Export your work before starting a new plan.'); }
+}
+
+// The reference image is stored apart from the plan; if the browser cannot hold it, it lasts until the page closes. Returns whether it was stored.
+function saveBackdrop() {
+  try {
+    if (state.backdrop) localStorage.setItem(BACKDROP_KEY, JSON.stringify(state.backdrop)); else localStorage.removeItem(BACKDROP_KEY);
+    return true;
+  } catch { notify('This image is too large to keep in this browser. It stays only until you close or reload this page.'); return false; }
+}
+function validBackdrop(b) {
+  const positive = n => Number.isFinite(n) && n > 0;
+  const ok = b && typeof b.src === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(b.src) && Number.isFinite(b.x) && Number.isFinite(b.y)
+    && positive(b.width) && positive(b.aspect) && b.opacity >= .1 && b.opacity <= 1;
+  return ok ? { src: b.src, x: b.x, y: b.y, width: b.width, aspect: b.aspect, opacity: b.opacity } : null;
+}
+function loadBackdrop() {
+  try { const raw = localStorage.getItem(BACKDROP_KEY); if (raw) state.backdrop = validBackdrop(JSON.parse(raw)); } catch { state.backdrop = null; }
+}
+// Grows or shrinks the image by `factor` around `anchor`, which stays where it is.
+function scaleBackdrop(anchor, factor) {
+  const b = state.backdrop; if (!b) return;
+  Object.assign(b, { x: anchor.x + (b.x - anchor.x) * factor, y: anchor.y + (b.y - anchor.y) * factor, width: b.width * factor });
+  const stored = saveBackdrop(); render(); return stored;
 }
 
 // Records `before` (a snapshot) as an undo step if the plan changed, then saves and redraws.

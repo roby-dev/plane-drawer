@@ -86,6 +86,19 @@ function placeSymbol(e) {
   // A new text item is ready to type into.
   if (sym.text !== undefined) { $('symbol-text').focus(); $('symbol-text').select?.(); }
 }
+// Set scale: the first click marks a point, the second asks for the real distance and resizes the image to match it.
+function calibrateClick(e) {
+  const p = point(e, false), c = state.calibration;
+  if (!c) { state.calibration = { first: p, end: p }; render(); return; }
+  const measured = Math.hypot(p.x - c.first.x, p.y - c.first.y);
+  if (measured < px(5)) return;
+  const answer = prompt('Real distance between the two points, in meters:', measured.toFixed(2));
+  setTool('select');
+  if (answer === null) return;
+  const real = Number(String(answer).trim().replace(',', '.'));
+  if (real >= .1 && real <= 1000) { if (scaleBackdrop(c.first, real / measured)) notify('Scale set. Draw on top of the image; you can lower its opacity in Files.'); }
+  else notify('Enter a distance between 0.10 and 1000 meters, then use Set scale again.');
+}
 // Ctrl+drag: duplicate the selection in place; the copy is what gets dragged. Returns the selection to restore if nothing moves.
 function duplicateSelection() {
   const restore = { selectedWallId: state.selectedWallId, selectedSymbolId: state.selectedSymbolId, single: state.single };
@@ -102,6 +115,7 @@ function startGesture(e) {
   if (e.button === 1) e.preventDefault();
   svg.focus({ preventScroll: true });
   if (e.button === 0 && state.tool === 'symbol') { placeSymbol(e); return; }
+  if (e.button === 0 && state.tool === 'calibrate') { calibrateClick(e); return; }
   svg.setPointerCapture(e.pointerId);
   state.reference = null; state.measure = null;
   const drawing = e.button === 0 && isDrawingTool(state.tool);
@@ -164,9 +178,7 @@ const DRAG = {
   'group-move'(g, e) {
     const p = point(e), delta = { x: p.x - g.start.x, y: p.y - g.start.y };
     if (delta.x || delta.y) g.moved = true;
-    replaceWalls(g.walls.map(o => M.move(o, delta)));
-    const moved = new Map(g.symbols.map(o => [o.id, { ...o, x: M.round(o.x + delta.x), y: M.round(o.y + delta.y) }]));
-    state.plan.symbols = state.plan.symbols.map(s => moved.get(s.id) || s);
+    moveItems(g.walls, g.symbols, delta);
   },
   wall(g, e) { g.preview = [M.wall(g.start, wallEnd(e, g))]; },
   rectangle(g, e) { g.preview = M.rectangle(g.start, wallEnd(e, g)); },
@@ -227,7 +239,8 @@ function hover(e) {
     const at = placement(e, state.symbolType);
     state.ghost = { id: 'ghost', type: state.symbolType, x: at.x, y: at.y, rotation: at.rotation }; state.guides = at.guides;
   }
-  if (isDrawingTool(tool) || tool === 'symbol' || state.measure || hadMeasure) render();
+  if (tool === 'calibrate' && state.calibration) state.calibration.end = point(e, false);
+  if (isDrawingTool(tool) || tool === 'symbol' || tool === 'calibrate' || state.measure || hadMeasure) render();
 }
 function endGesture(e) {
   const g = state.gesture; if (!g) return;

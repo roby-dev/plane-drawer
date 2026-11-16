@@ -147,3 +147,8 @@ test('free text items: default content, editing, size and round-trip', () => {
   assert.throws(bad(''));
   assert.throws(bad(42));
 });
+
+test('outer bounds reach the outer faces of the walls', () => {
+  const walls = [...model.rectangle({ x: 0, y: 0 }, { x: 4, y: 3 }), { ...model.wall({ x: 6, y: 1 }, { x: 6, y: 5 }), thickness: .3 }];
+  assert.deepEqual(model.outerBounds(walls), { left: -.075, top: -.075, right: 6.15, bottom: 5.15 });
+});

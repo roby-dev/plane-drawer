@@ -174,6 +174,18 @@ function drawPlan(layers, { selection = [], interactive = true } = {}) {
   state.plan.walls.forEach(w => drawWall(w, layers.walls, { active: active.has(w.id), interactive }));
   state.plan.symbols.forEach(sym => drawSymbol(sym, layers.symbols, { interactive }));
   drawRoomLabels(layers.labels);
+  drawOverall(layers.labels);
+}
+// While dimensions are shown: the plan's overall width above it and its overall depth to its left, measured to the outer wall faces.
+function drawOverall(parent) {
+  if (!$('dimensions').checked || !state.plan.walls.length) return;
+  const b = M.outerBounds(state.plan.walls), gap = .45 + px(10), tick = px(6), y = b.top - gap, x = b.left - gap;
+  const line = (x1, y1, x2, y2) => el('line', { x1, y1, x2, y2, stroke: COLORS.dimension, 'stroke-width': px(1), 'pointer-events': 'none' }, parent);
+  const label = (lx, ly, rotate, value) => el('text', { x: lx, y: ly, transform: 'rotate(' + rotate + ' ' + lx + ' ' + ly + ')', fill: COLORS.dimension, 'font-size': px(12), 'font-weight': 600, 'font-family': FONT, 'text-anchor': 'middle', 'dominant-baseline': 'central', ...halo(5), 'pointer-events': 'none' }, parent, value.toFixed(2) + ' m');
+  line(b.left, y, b.right, y); line(b.left, y - tick, b.left, y + tick); line(b.right, y - tick, b.right, y + tick);
+  line(x, b.top, x, b.bottom); line(x - tick, b.top, x + tick, b.top); line(x - tick, b.bottom, x + tick, b.bottom);
+  label((b.left + b.right) / 2, y - px(10), 0, b.right - b.left);
+  label(x - px(10), (b.top + b.bottom) / 2, -90, b.bottom - b.top);
 }
 // The plan as standalone SVG markup at 100% zoom (1 m = 55 px), without grid, selection or handles; null when empty.
 function planSvg() {

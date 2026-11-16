@@ -31,7 +31,7 @@ function loadApp(extra = {}) {
   const tools = ['select', 'area', 'rectangle', 'wall', 'pan'].map(tool => { const el = new Element(); el.dataset.tool = tool; return el; });
   const storage = new Map(extra.seed || []), docListeners = {}, downloads = [];
   const markup = node => '<' + node.tagName + Object.entries(node.attrs).map(([k, v]) => ' ' + k + '="' + v + '"').join('') + '>' + (node.textContent ?? node.children.map(markup).join('')) + '</' + node.tagName + '>';
-  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => { if (extra.storageLimit && value.length > extra.storageLimit) throw new Error("QuotaExceededError"); storage.set(key, value); }, removeItem: key => storage.delete(key) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: tag => Object.assign(new Element(), { tagName: tag }), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } }, ...extra.globals };
+  const context = { PlanModel: model, Blob: class { constructor(parts, options) { this.text = parts.join(''); this.type = options.type; } }, URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:' + downloads.length; }, revokeObjectURL() {} }, XMLSerializer: class { serializeToString(node) { return markup(node); } }, structuredClone, setTimeout, clearTimeout, ResizeObserver: class { observe() {} }, location: { href: 'https://example.test/app/', hash: '' }, history: { replaceState() {} }, localStorage: { getItem: key => storage.get(key), setItem: (key, value) => { if (extra.storageLimit && value.length > extra.storageLimit) throw new Error("QuotaExceededError"); storage.set(key, value); }, removeItem: key => storage.delete(key) }, document: { getElementById: get, querySelectorAll: () => tools, createElementNS: (ns, tag) => Object.assign(new Element(), { tagName: tag }), createElement: tag => Object.assign(new Element(), { tagName: tag }), addEventListener(type, cb) { (docListeners[type] ||= []).push(cb); } }, ...extra.globals };
   // Run the app scripts in index.html order, sharing one global scope like the browser does (model.js is injected above).
   vm.createContext(context);
   const scripts = [...fs.readFileSync(require.resolve('./index.html'), 'utf8').matchAll(/<script defer src="([^"]+)">/g)].map(m => m[1]).filter(src => src !== 'model.js');
@@ -604,7 +604,7 @@ test('Ctrl+A selects the whole plan, Delete removes it in one step and Esc clear
 
 test('each room shows its area in square meters while dimensions are shown, under its name', () => {
   const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
-  const areas = () => app.get('labels').children.filter(c => c.textContent.endsWith(' m²')).map(c => c.textContent);
+  const areas = () => app.get('labels').children.filter(c => c.textContent?.endsWith(' m²')).map(c => c.textContent);
   assert.deepEqual(areas(), ['12.00 m²']);
   app.get('dimensions').checked = false; app.get('dimensions').onchange();
   assert.deepEqual(areas(), []);
@@ -613,7 +613,7 @@ test('each room shows its area in square meters while dimensions are shown, unde
   app.tool('select'); canvas.fire('pointerdown', { target: { dataset: { wall: wall.id } } }); canvas.fire('pointerup');
   app.get('room-name').value = 'Kitchen'; app.get('room-width').value = '5'; app.get('room-height').value = '3'; app.get('room-thickness').value = wall.thickness;
   app.get('room-properties').onsubmit({ preventDefault() {} });
-  assert.deepEqual(app.get('labels').children.map(c => c.textContent), ['Kitchen', '15.00 m²']);
+  assert.deepEqual(app.get('labels').children.filter(c => c.tagName === 'text').map(c => c.textContent).slice(0, 2), ['Kitchen', '15.00 m²']);
 });
 
 test('Ctrl+C and Ctrl+V paste a copy of the selection 50 cm further each time, as new rooms with their names', () => {
@@ -761,4 +761,58 @@ test('reference images that are too large, unsupported or corrupt are refused wi
   const corrupt = loadApp({ seed: [['planedrawer.backdrop.v1', JSON.stringify({ src: 'javascript:alert(1)', x: 0, y: 0, width: 1, aspect: 1, opacity: .5 })]] });
   assert.equal(backdropImage(corrupt), undefined);
   assert.equal(corrupt.get('backdrop-controls').hidden, true);
+});
+
+test('overall width and depth are shown outside the plan with dimensions, and exported with the drawing', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  const texts = () => app.get('labels').children.filter(c => c.tagName === 'text').map(c => c.textContent);
+  assert.deepEqual(texts(), ['12.00 m²', '4.15 m', '3.15 m']);
+  app.get('dimensions').checked = false; app.get('dimensions').onchange();
+  assert.deepEqual(app.get('labels').children, []);
+  app.get('dimensions').checked = true; app.get('dimensions').onchange();
+  app.get('export-svg').onclick();
+  const svg = app.downloads.at(-1).text;
+  assert.match(svg, />4\.15 m</); assert.match(svg, />3\.15 m</);
+  assert.equal(canvas.attrs.viewBox !== undefined, true);
+});
+
+// Browser APIs a share link needs, with a link to open and a clipboard that remembers what was copied.
+function shareGlobals(href, { confirmAnswer = true } = {}) {
+  const at = new URL(href), page = { href, hash: at.hash, replaced: null, copied: null };
+  return { page, globals: {
+    TextEncoder, TextDecoder, CompressionStream, DecompressionStream, btoa, atob,
+    location: { get href() { return page.href; }, get hash() { return page.hash; } },
+    history: { replaceState(_s, _t, url) { page.replaced = url; page.href = url; page.hash = ''; } },
+    navigator: { clipboard: { writeText: async text => { page.copied = text; } } },
+    confirm: () => confirmAnswer, prompt: () => null
+  } };
+}
+const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+
+test('a share link carries the whole plan; opening it replaces the plan as one undoable step and clears the link', async () => {
+  const sender = shareGlobals('https://example.test/app/'), app = loadApp({ globals: sender.globals }), canvas = app.get('canvas'); drawRoom(app);
+  pick(app, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  await app.get('share').onclick();
+  assert.match(sender.page.copied, /^https:\/\/example\.test\/app\/#plan=[A-Za-z0-9_-]+$/);
+  assert.match(app.get('message').textContent, /^Link copied/);
+  const sent = stored(app);
+  const receiver = shareGlobals(sender.page.copied), other = loadApp({ globals: receiver.globals }); await settle();
+  assert.deepEqual(stored(other), sent);
+  assert.equal(receiver.page.replaced, 'https://example.test/app/');
+  other.key('keydown', { key: 'z', ctrlKey: true });
+  assert.deepEqual([stored(other).walls.length, stored(other).symbols.length], [0, 0]);
+});
+
+test('a share link asks before replacing existing work, and a damaged link changes nothing', async () => {
+  const sender = shareGlobals('https://example.test/app/'), app = loadApp({ globals: sender.globals }); drawRoom(app);
+  await app.get('share').onclick();
+  const mine = shareGlobals('https://example.test/app/'), owner = loadApp({ globals: mine.globals }), canvas = owner.get('canvas');
+  pick(owner, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  const kept = owner.storage;
+  const declined = shareGlobals(sender.page.copied, { confirmAnswer: false }), again = loadApp({ globals: declined.globals, seed: kept }); await settle();
+  assert.equal(stored(again).symbols.length, 1); assert.equal(stored(again).walls.length, 0);
+  assert.equal(declined.page.replaced, 'https://example.test/app/');
+  const broken = shareGlobals('https://example.test/app/#plan=not-a-real-plan'), damaged = loadApp({ globals: broken.globals, seed: kept }); await settle();
+  assert.match(damaged.get('message').textContent, /damaged or incomplete/);
+  assert.equal(stored(damaged).symbols.length, 1);
 });

@@ -130,6 +130,49 @@ $('import-file').onchange = async () => {
   finally { $('import-file').value = ''; }
 };
 
+// Share link: the whole plan, compressed, travels in the URL fragment (after #), which browsers never send to a server.
+const SHARE_PREFIX = '#plan=';
+async function transformBytes(bytes, stream) {
+  const writer = stream.writable.getWriter();
+  writer.write(bytes).catch(() => {}); writer.close().catch(() => {});
+  const chunks = [], reader = stream.readable.getReader();
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0; for (const c of chunks) { out.set(c, at); at += c.length; }
+  return out;
+}
+function toBase64Url(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+const fromBase64Url = text => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+async function shareLink() {
+  const packed = await transformBytes(new TextEncoder().encode(M.encode(state.plan)), new CompressionStream('deflate-raw'));
+  return location.href.split('#')[0] + SHARE_PREFIX + toBase64Url(packed);
+}
+$('share').onclick = async () => {
+  $('file-menu').open = false;
+  let link;
+  try { link = await shareLink(); } catch { notify('This browser cannot create share links. Use Export plan instead.'); return; }
+  const note = link.length > 4000 ? ' It is long, so some chat apps may cut it; send the exported plan file if it does not open.' : '';
+  try { await navigator.clipboard.writeText(link); notify('Link copied. Whoever opens it gets their own copy of this plan; the reference image is not included.' + note); }
+  catch { prompt('Copy this link to share a copy of the plan:', link); }
+};
+// Opening a share link offers to replace this browser's plan with the shared copy (Ctrl+Z restores it), then clears the link.
+async function openSharedPlan() {
+  if (!location.hash.startsWith(SHARE_PREFIX)) return;
+  try {
+    const json = new TextDecoder().decode(await transformBytes(fromBase64Url(location.hash.slice(SHARE_PREFIX.length)), new DecompressionStream('deflate-raw')));
+    const shared = M.decode(json), current = state.plan;
+    const hasWork = current.walls.length || current.symbols.length;
+    if (!hasWork || confirm('Open the shared plan "' + shared.name + '"? It replaces the plan in this browser. Export a backup first if you want to keep it.')) {
+      replacePlan(shared); renderInspector(); fit(); notify('Opened the shared plan. Press Ctrl+Z to go back to your previous plan.');
+    }
+  } catch { notify('This share link is damaged or incomplete. Your plan was not changed.'); }
+  finally { history.replaceState(null, '', location.href.split('#')[0]); }
+}
+
 // Reference image to trace over
 const readDataUrl = file => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
 const imageAspect = src => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img.naturalHeight / img.naturalWidth); img.onerror = reject; img.src = src; });
@@ -184,3 +227,4 @@ loadStoredPlan(); loadBackdrop(); renderBackdropControls();
 $('plan-name').value = state.plan.name;
 new ResizeObserver(() => render()).observe($('drawing'));
 renderInspector(); render(); if (state.plan.walls.length) fit();
+openSharedPlan();

@@ -99,6 +99,15 @@
     const xs = walls.flatMap(w => [w.a.x, w.b.x]), ys = walls.flatMap(w => [w.a.y, w.b.y]);
     return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
   }
+  // Box around the outer faces of every wall: square wall ends reach half a thickness past each endpoint.
+  // Exact for horizontal and vertical walls; slanted walls count their full half thickness on both axes.
+  function outerBounds(walls) {
+    const half = w => w.thickness / 2;
+    return {
+      left: round(Math.min(...walls.map(w => Math.min(w.a.x, w.b.x) - half(w)))), top: round(Math.min(...walls.map(w => Math.min(w.a.y, w.b.y) - half(w)))),
+      right: round(Math.max(...walls.map(w => Math.max(w.a.x, w.b.x) + half(w)))), bottom: round(Math.max(...walls.map(w => Math.max(w.a.y, w.b.y) + half(w))))
+    };
+  }
   // Corners of the room's bounding box, clockwise from top-left.
   function roomCorners(walls) {
     const b = roomBounds(walls);
@@ -211,7 +220,7 @@
     decode(text);
     return text;
   }
-  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, roomCorners, resizeRoom, SYMBOLS, symbol, copySymbol, symbolSize, resizeSymbol, editText, TEXT_MAX, ROOM_NAME_MAX, snapToWall };
+  const api = { round, wall, length, rectangle, move, resize, decode, encode, findReference, findLineReference, findMeasure, findAlignment, duplicateWalls, roomBounds, outerBounds, roomCorners, resizeRoom, SYMBOLS, symbol, copySymbol, symbolSize, resizeSymbol, editText, TEXT_MAX, ROOM_NAME_MAX, snapToWall };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PlanModel = api;
 })(globalThis);

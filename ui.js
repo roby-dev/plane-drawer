@@ -134,6 +134,8 @@ document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
   if (e.key === 'Escape') { cancelGesture(); select(); setTool('select'); renderInspector(); }
   if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(key)) { e.preventDefault(); undo(key === 'y' || e.shiftKey); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && key === 'c') { copySelection(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && key === 'v') { e.preventDefault(); cancelGesture(); paste(); return; }
   if ((e.ctrlKey || e.metaKey) && key === 'a') { e.preventDefault(); cancelGesture(); selectAll(); renderInspector(); render(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSelected(); }

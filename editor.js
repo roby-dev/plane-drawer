@@ -21,6 +21,9 @@ const state = {
   single: false,
   // Area selection: several walls and symbols picked together (null when not in use).
   group: null,
+  // Ctrl+C copy kept inside the editor, and how many times it has been pasted.
+  clipboard: null,
+  pastes: 0,
   // Pointer interaction and the overlays it shows.
   gesture: null,
   lastPointer: null,
@@ -50,7 +53,35 @@ function selectGroup(wallIds, symbolIds) {
 const selectAll = () => selectGroup(state.plan.walls.map(w => w.id), state.plan.symbols.map(s => s.id));
 const groupWalls = () => state.group ? state.plan.walls.filter(w => state.group.walls.includes(w.id)) : [];
 const groupSymbols = () => state.group ? state.plan.symbols.filter(s => state.group.symbols.includes(s.id)) : [];
-const inGroup = id => !!id && !!state.group && (state.group.walls.includes(id) || state.group.symbols.includes(id));
+// Fresh copies of the current selection (area group, room or wall, or symbol), keeping room names.
+function selectionCopies() {
+  const walls = state.group ? groupWalls() : selectedWalls();
+  const symbols = state.group ? groupSymbols() : [selectedSymbol()].filter(Boolean);
+  return copyItems(walls, symbols, state.plan.rooms, 0);
+}
+function copyItems(walls, symbols, names, shift) {
+  const copies = M.duplicateWalls(walls).map(w => shift ? M.move(w, { x: shift, y: shift }) : w), rooms = {};
+  copies.forEach((c, i) => { const name = names[walls[i].room]; if (c.room && name) rooms[c.room] = name; });
+  return { walls: copies, symbols: symbols.map(s => ({ ...M.copySymbol(s), x: M.round(s.x + shift), y: M.round(s.y + shift) })), rooms };
+}
+// Adds copies to the plan and selects them as one group.
+function placeCopies({ walls, symbols, rooms }) {
+  state.plan.walls.push(...walls); state.plan.symbols.push(...symbols); Object.assign(state.plan.rooms, rooms);
+  selectGroup(walls.map(w => w.id), symbols.map(s => s.id));
+}
+// Ctrl+C keeps a copy of the selection in the editor; each Ctrl+V pastes it 50 cm further down and right.
+function copySelection() {
+  const copied = selectionCopies(), count = copied.walls.length + copied.symbols.length;
+  if (!count) return;
+  state.clipboard = copied; state.pastes = 0;
+  notify('Copied ' + count + (count === 1 ? ' item.' : ' items.') + ' Press Ctrl+V to paste.');
+}
+function paste() {
+  const c = state.clipboard; if (!c) return;
+  const before = snapshot();
+  placeCopies(copyItems(c.walls, c.symbols, c.rooms, ++state.pastes * .5)); commit(before); render();
+}
+const inGroup = id =>!!id && !!state.group && (state.group.walls.includes(id) || state.group.symbols.includes(id));
 // The selected wall, or its whole room unless a single wall was picked with Alt.
 function selectedWalls() {
   const { plan, selectedWallId, single } = state;

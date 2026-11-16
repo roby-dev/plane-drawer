@@ -116,7 +116,10 @@ function startGesture(e) {
 function startGroupMove(e, start) {
   const { wall, symbol } = e.target.dataset;
   if (!inGroup(wall || symbol)) return false;
-  state.gesture = { kind: 'group-move', start, walls: structuredClone(groupWalls()), symbols: structuredClone(groupSymbols()), before: snapshot() };
+  // Ctrl+drag leaves the group in place and drags a copy of it.
+  const before = snapshot(), copy = ctrlOnly(e) ? { group: state.group } : null;
+  if (copy) placeCopies(selectionCopies());
+  state.gesture = { kind: 'group-move', start, walls: structuredClone(groupWalls()), symbols: structuredClone(groupSymbols()), before, copy };
   return true;
 }
 // Area tool: drag a box to select everything fully inside it, or drag the current selection.
@@ -160,6 +163,7 @@ const DRAG = {
   marquee(g, e) { g.end = point(e, false); },
   'group-move'(g, e) {
     const p = point(e), delta = { x: p.x - g.start.x, y: p.y - g.start.y };
+    if (delta.x || delta.y) g.moved = true;
     replaceWalls(g.walls.map(o => M.move(o, delta)));
     const moved = new Map(g.symbols.map(o => [o.id, { ...o, x: M.round(o.x + delta.x), y: M.round(o.y + delta.y) }]));
     state.plan.symbols = state.plan.symbols.map(s => moved.get(s.id) || s);

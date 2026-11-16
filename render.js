@@ -82,13 +82,17 @@ function drawHandles(group) {
   if (group.length === 4) M.roomCorners(group).forEach((p, i) => { handle(p, 7, i % 2 ? 'nesw-resize' : 'nwse-resize').dataset.corner = i; });
   else if (group.length) ['a', 'b'].forEach(end => { handle(group[0][end], 6, isPanning() ? 'grabbing' : 'crosshair').dataset.end = end; });
 }
-// Each named room's name, centered in it.
+// Each room's name and, while dimensions are shown, its area (measured to wall centerlines), centered in it.
 function drawRoomLabels(parent) {
-  for (const [room, name] of Object.entries(state.plan.rooms)) {
-    const walls = state.plan.walls.filter(w => w.room === room);
+  const rooms = new Map();
+  state.plan.walls.forEach(w => { if (w.room) rooms.set(w.room, [...(rooms.get(w.room) || []), w]); });
+  for (const [room, walls] of rooms) {
     if (walls.length !== 4) continue;
-    const b = M.roomBounds(walls);
-    el('text', { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2, fill: COLORS.ink, 'font-size': px(14), 'font-weight': 600, 'font-family': FONT, 'text-anchor': 'middle', 'dominant-baseline': 'central', ...halo(5), 'pointer-events': 'none' }, parent, name);
+    const b = M.roomBounds(walls), x = (b.left + b.right) / 2, y = (b.top + b.bottom) / 2, name = state.plan.rooms[room];
+    const area = $('dimensions').checked ? ((b.right - b.left) * (b.bottom - b.top)).toFixed(2) + ' m²' : null;
+    const label = (dy, attrs, text) => el('text', { x, y: y + dy, 'font-family': FONT, 'text-anchor': 'middle', 'dominant-baseline': 'central', ...halo(5), 'pointer-events': 'none', ...attrs }, parent, text);
+    if (name) label(0, { fill: COLORS.ink, 'font-size': px(14), 'font-weight': 600 }, name);
+    if (area) label(name ? px(16) : 0, { fill: COLORS.dimension, 'font-size': px(12) }, area);
   }
 }
 function drawGuide(g, parent) {

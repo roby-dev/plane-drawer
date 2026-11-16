@@ -601,3 +601,52 @@ test('Ctrl+A selects the whole plan, Delete removes it in one step and Esc clear
   app.key('keydown', { key: 'z', ctrlKey: true });
   assert.deepEqual([stored(app).walls.length, stored(app).symbols.length], [4, 1]);
 });
+
+test('each room shows its area in square meters while dimensions are shown, under its name', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  const areas = () => app.get('labels').children.filter(c => c.textContent.endsWith(' m²')).map(c => c.textContent);
+  assert.deepEqual(areas(), ['12.00 m²']);
+  app.get('dimensions').checked = false; app.get('dimensions').onchange();
+  assert.deepEqual(areas(), []);
+  app.get('dimensions').checked = true; app.get('dimensions').onchange();
+  const wall = stored(app).walls[0];
+  app.tool('select'); canvas.fire('pointerdown', { target: { dataset: { wall: wall.id } } }); canvas.fire('pointerup');
+  app.get('room-name').value = 'Kitchen'; app.get('room-width').value = '5'; app.get('room-height').value = '3'; app.get('room-thickness').value = wall.thickness;
+  app.get('room-properties').onsubmit({ preventDefault() {} });
+  assert.deepEqual(app.get('labels').children.map(c => c.textContent), ['Kitchen', '15.00 m²']);
+});
+
+test('Ctrl+C and Ctrl+V paste a copy of the selection 50 cm further each time, as new rooms with their names', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  pick(app, 'toilet'); canvas.fire('pointerdown', { clientX: 220, clientY: 200 }); canvas.fire('pointerup');
+  const [wall] = stored(app).walls;
+  app.tool('select'); canvas.fire('pointerdown', { target: { dataset: { wall: wall.id } } }); canvas.fire('pointerup');
+  app.get('room-name').value = 'Bath'; app.get('room-width').value = '4'; app.get('room-height').value = '3'; app.get('room-thickness').value = wall.thickness;
+  app.get('room-properties').onsubmit({ preventDefault() {} });
+  app.key('keydown', { key: 'a', ctrlKey: true }); app.key('keydown', { key: 'c', ctrlKey: true });
+  const before = stored(app);
+  app.key('keydown', { key: 'v', ctrlKey: true }); app.key('keydown', { key: 'v', ctrlKey: true });
+  const after = stored(app);
+  assert.equal(after.walls.length, 12); assert.equal(after.symbols.length, 3);
+  assert.deepEqual(after.symbols.map(s => [s.x, s.y]), [[2, 1.6], [2.5, 2.1], [3, 2.6]]);
+  assert.equal(new Set(after.walls.map(w => w.room)).size, 3);
+  assert.deepEqual(Object.values(after.rooms), ['Bath', 'Bath', 'Bath']);
+  assert.equal(new Set([...after.walls, ...after.symbols].map(x => x.id)).size, 15);
+  assert.match(app.get('hint').textContent, /^5 items selected/);
+  app.key('keydown', { key: 'z', ctrlKey: true }); app.key('keydown', { key: 'z', ctrlKey: true });
+  assert.deepEqual(stored(app), before);
+});
+
+test('Ctrl+drag on an area selection drags a copy and leaves the original; a Ctrl+click adds nothing', () => {
+  const app = loadApp(), canvas = app.get('canvas'); drawRoom(app);
+  const before = stored(app), id = before.walls[0].id;
+  app.key('keydown', { key: 'a', ctrlKey: true });
+  canvas.fire('pointerdown', { clientX: 110, clientY: 110, ctrlKey: true, target: { dataset: { wall: id } } }); canvas.fire('pointerup', { clientX: 110, clientY: 110 });
+  assert.deepEqual(stored(app), before);
+  canvas.fire('pointerdown', { clientX: 110, clientY: 110, ctrlKey: true, target: { dataset: { wall: id } } });
+  canvas.fire('pointermove', { clientX: 385, clientY: 110, ctrlKey: true }); canvas.fire('pointerup');
+  const after = stored(app);
+  assert.equal(after.walls.length, 8);
+  assert.deepEqual(after.walls.slice(0, 4), before.walls);
+  assert.deepEqual(after.walls.slice(4).map(w => w.a.x - 5), before.walls.map(w => w.a.x));
+});
